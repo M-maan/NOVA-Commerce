@@ -1,0 +1,1 @@
+import Link from 'next/link'; export default function FailedPage() { return <main className="mx-auto max-w-2xl p-8 text-center"><h1 className="text-3xl font-bold">Payment failed</h1><p className="my-4 text-muted-foreground">Your cart is safe. Retry the payment or return to checkout.</p><Link className="underline" href="/checkout">Retry checkout</Link></main>; }

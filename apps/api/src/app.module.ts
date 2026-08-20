@@ -13,6 +13,9 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { CartModule } from './modules/cart/cart.module';
 import { WishlistModule } from './modules/wishlist/wishlist.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
 
 @Module({
   imports: [
@@ -43,6 +46,10 @@ import { InventoryModule } from './modules/inventory/inventory.module';
         JWT_REFRESH_SECRET: Joi.string().min(32).required(),
         JWT_ACCESS_EXPIRES_IN: Joi.string().default('15m'),
         JWT_REFRESH_EXPIRES_IN_DAYS: Joi.number().integer().positive().default(30),
+        STRIPE_SECRET_KEY: Joi.string().allow('').default(''),
+        STRIPE_WEBHOOK_SECRET: Joi.string().allow('').default(''),
+        STRIPE_PUBLISHABLE_KEY: Joi.string().allow('').default(''),
+        CHECKOUT_TAX_RATE: Joi.number().min(0).max(1).default(0.1),
       }),
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
@@ -56,6 +63,9 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     CartModule,
     WishlistModule,
     InventoryModule,
+    CheckoutModule,
+    PaymentsModule,
+    ShippingModule,
     HealthModule,
   ],
 })

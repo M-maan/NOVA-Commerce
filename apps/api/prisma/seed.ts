@@ -200,6 +200,17 @@ async function main() {
       usageCount: 1,
     },
   });
+
+  await prisma.shippingMethod.upsert({
+    where: { code: 'STANDARD' },
+    update: { status: 'ACTIVE', price: 5, estimatedDays: 5 },
+    create: { name: 'Standard Delivery', code: 'STANDARD', description: 'Reliable delivery in 5 business days.', price: 5, estimatedDays: 5, status: 'ACTIVE' },
+  });
+  await prisma.shippingMethod.upsert({
+    where: { code: 'EXPRESS' },
+    update: { status: 'ACTIVE', price: 15, estimatedDays: 2 },
+    create: { name: 'Express Delivery', code: 'EXPRESS', description: 'Priority delivery in 2 business days.', price: 15, estimatedDays: 2, status: 'ACTIVE' },
+  });
 }
 
 main()
