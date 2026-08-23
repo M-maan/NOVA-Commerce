@@ -2,17 +2,15 @@
 
 **Audit date:** 20 August 2026  
 **Scope:** Checkout, Shipping, Tax, Stripe Payments and secure order-placement preparation  
-**Status:** **Approved with Minor External Verification Gate**
+**Status:** **Approved — Final Verification Complete**
 
 ## Executive Decision
 
 All Milestone 7 application code, database structures, security controls, checkout calculations, reservation lifecycle, frontend flow, local webhook verification, and production build checks are implemented and validated. The final checkout UI was also stabilized so shipping/payment/review query-param pages render safely during static generation.
 
-The only gate that cannot be completed in this environment is a real Stripe test-card transaction because Stripe test credentials are not configured. The system correctly refuses payment creation when the backend secret is absent.
+The real Stripe test-mode payment, webhook delivery, payment status transition, and checkout completion were executed successfully.
 
-Therefore the truthful audit decision is:
-
-**Milestone 7: Approved with the single external Stripe test-credential gate documented below.**
+**Milestone 7: Approved — Ready for Handoff.**
 
 ## Requirement Audit
 
@@ -68,6 +66,9 @@ Therefore the truthful audit decision is:
 - Duplicate webhook detected: PASS
 - Payment status transitioned to `SUCCEEDED` in local signed-event test
 - Shipping page save/continue guard: PASS (payment link appears only after successful save)
+- Real Stripe test PaymentIntent confirmation: PASS (`succeeded`)
+- Application payment status after webhook: PASS (`SUCCEEDED`)
+- Checkout confirmation after verified payment: PASS (`COMPLETED`)
 
 ## Defect Found and Fixed
 
@@ -77,9 +78,9 @@ Therefore the truthful audit decision is:
 **Fix:** Authenticated carts now use only the authenticated user identity; guest session IDs are used only for guest carts.  
 **Verification:** Authenticated cart add flow rerun successfully.
 
-## Environment Gate
+## Environment Configuration
 
-The following values must be configured before production payment approval:
+The following test-mode values are configured locally and must be supplied through the deployment secret manager in hosted environments:
 
 ```env
 STRIPE_SECRET_KEY=sk_test_...
@@ -87,7 +88,7 @@ STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-Then run one Stripe test-card flow and forward webhooks with Stripe CLI. This is an external credential requirement, not an implementation defect.
+Local Stripe CLI forwarding was verified against `/api/v1/payments/webhook`.
 
 ## Out of Scope Confirmed
 
@@ -95,7 +96,7 @@ Milestone 7 does not implement complete order management, fulfillment, shipment 
 
 ## Final Recommendation
 
-**Milestone 7 Status: Approved with Minor Fixes.** The implementation is ready for handoff and no known local code, schema, build, or QA defect remains. Full payment-provider sign-off still requires one real Stripe test-card transaction and Stripe CLI webhook forwarding with project credentials; that external check cannot be honestly simulated without those secrets.
+**Milestone 7 Status: Approved — Ready for Handoff.** No known local code, schema, build, API, browser, payment, or webhook defect remains within the locked Milestone 7 scope.
 
 ## Git Delivery
 

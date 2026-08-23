@@ -24,7 +24,7 @@ export class PaymentsService {
     const existing = checkout.payments.find((p) => ['PENDING', 'REQUIRES_ACTION', 'PROCESSING'].includes(p.status));
     if (existing) return { payment: existing, clientSecret: existing.providerPaymentId };
     const amount = Math.round(Number(checkout.grandTotal) * 100);
-    const intent = await this.stripe('payment_intents', { amount: String(amount), currency: checkout.currency.toLowerCase(), 'metadata[checkout_session_id]': checkout.id, 'automatic_payment_methods[enabled]': 'true' });
+    const intent = await this.stripe('payment_intents', { amount: String(amount), currency: checkout.currency.toLowerCase(), 'metadata[checkout_session_id]': checkout.id, 'automatic_payment_methods[enabled]': 'true', 'automatic_payment_methods[allow_redirects]': 'never' });
     const payment = await this.prisma.payment.create({ data: { userId, checkoutSessionId: checkout.id, provider: 'stripe', providerPaymentId: String(intent.id), amount: checkout.grandTotal, currency: checkout.currency, status: 'PENDING' } });
     await this.prisma.checkoutSession.update({ where: { id: checkout.id }, data: { status: 'PAYMENT_PENDING' } });
     return { payment, clientSecret: intent.client_secret };
