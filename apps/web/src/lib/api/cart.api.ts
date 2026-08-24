@@ -13,5 +13,7 @@ const guest = () =>
         localStorage.setItem('nova-guest-session', uuid);
         return uuid;
       })();
-const opts = () => ({ headers: tokenStore.get() ? {} : { 'x-guest-session-id': guest() } });
+const opts = (): RequestInit => ({
+  headers: tokenStore.get() ? {} : { 'x-guest-session-id': guest() },
+});
 export const cartApi = { get:()=>catalogFetch('/cart',opts()), add:(body:any)=>catalogFetch('/cart/items',{...opts(),method:'POST',body:JSON.stringify(body)}), update:(id:string,quantity:number)=>catalogFetch(`/cart/items/${id}`,{...opts(),method:'PATCH',body:JSON.stringify({quantity})}), remove:(id:string)=>catalogFetch(`/cart/items/${id}`,{...opts(),method:'DELETE'}), clear:()=>catalogFetch('/cart',{...opts(),method:'DELETE'}), applyCoupon:(code:string)=>catalogFetch('/cart/apply-coupon',{...opts(),method:'POST',body:JSON.stringify({code})}), removeCoupon:()=>catalogFetch('/cart/coupon',{...opts(),method:'DELETE'}) };
