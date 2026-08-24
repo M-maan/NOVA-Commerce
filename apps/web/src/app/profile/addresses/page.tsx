@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { AddressCard } from '@/components/profile/address-card';
@@ -23,6 +23,7 @@ const schema = z.object({
 
 export default function AddressesPage() {
   const { addresses, loadAddresses, createAddress, updateAddress, deleteAddress } = useUserStore();
+  const [submitError, setSubmitError] = useState('');
   const form = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema), defaultValues: { title: '', fullName: '', phone: '', country: '', province: '', city: '', postalCode: '', addressLine1: '', addressLine2: '', isDefault: false } });
   useEffect(() => { void loadAddresses(); }, [loadAddresses]);
 
@@ -30,7 +31,8 @@ export default function AddressesPage() {
     <div className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
       <section className="rounded-lg border p-5">
         <h1 className="text-2xl font-bold">Add address</h1>
-        <form className="mt-5 space-y-3" onSubmit={form.handleSubmit(async (values) => { await createAddress(values); form.reset(); })}>
+        <form className="mt-5 space-y-3" onSubmit={form.handleSubmit(async (values) => { setSubmitError(''); try { await createAddress(values); form.reset(); } catch (error) { setSubmitError(error instanceof Error ? error.message : 'Unable to save address.'); } })}>
+          {submitError && <p role="alert" className="rounded border border-red-400 p-3 text-sm text-red-500">{submitError}</p>}
           {['title', 'fullName', 'phone', 'country', 'province', 'city', 'postalCode', 'addressLine1', 'addressLine2'].map((name) => (
             <label key={name} className="block text-sm font-medium">{name}<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" {...form.register(name as keyof z.infer<typeof schema>)} /></label>
           ))}
