@@ -235,4 +235,44 @@ export class OrdersService {
 
   refunds() { return this.prisma.refund.findMany({ include: { order: true }, orderBy: { createdAt: 'desc' } }); }
   returnsAdmin() { return this.prisma.returnRequest.findMany({ include: { order: true, user: true }, orderBy: { requestedAt: 'desc' } }); }
+
+  /** Cancels return requests that were left open beyond the configured window. */
+  async expireReturns() {
+    const candidates = await this.prisma.returnRequest.findMany({
+      where: { status: { in: [ReturnStatus.REQUESTED, ReturnStatus.APPROVED] } },
+      include: { order: { include: { shipments: true } } },
+    });
+    const windowMs = this.config.get<number>('RETURN_WINDOW_DAYS', 30) * 24 * 60 * 60 * 1000;
+    let expired = 0;
+    for (const request of candidates) {
+      const deliveredAt = request.order.shipments.find((shipment) => shipment.deliveredAt)?.deliveredAt ?? request.order.updatedAt;
+      if (Date.now() - deliveredAt.getTime() <= windowMs) continue;
+      await this.prisma.returnRequest.update({ where: { id: request.id }, data: { status: ReturnStatus.CANCELLED } });
+      expired += 1;
+    }
+    return { expired };
+  }
+
+  /** Reconciles asynchronous Stripe refund states; no-op when Stripe is not configured. */
+  async syncRefunds() {
+    const secret = this.config.get<string>('STRIPE_SECRET_KEY');
+    if (!secret) return { checked: 0, updated: 0 };
+    const pending = await this.prisma.refund.findMany({ where: { status: { in: [RefundStatus.PENDING, RefundStatus.PROCESSING] }, providerRefundId: { not: null } } });
+    let updated = 0;
+    for (const refund of pending) {
+      const response = await fetch(`https://api.stripe.com/v1/refunds/${refund.providerRefundId}`, { headers: { Authorization: `Bearer ${secret}` } });
+      if (!response.ok) continue;
+      const data = await response.json() as { status?: string };
+      const status = data.status === 'succeeded' ? RefundStatus.SUCCEEDED : data.status === 'failed' ? RefundStatus.FAILED : data.status === 'canceled' ? RefundStatus.CANCELLED : RefundStatus.PROCESSING;
+      if (status === refund.status) continue;
+      await this.prisma.refund.update({ where: { id: refund.id }, data: { status } });
+      if (status === RefundStatus.SUCCEEDED) {
+        const total = await this.prisma.refund.aggregate({ where: { paymentId: refund.paymentId, status: RefundStatus.SUCCEEDED }, _sum: { amount: true } });
+        const payment = await this.prisma.payment.findUnique({ where: { id: refund.paymentId } });
+        if (payment) await this.prisma.payment.update({ where: { id: payment.id }, data: { status: Number(total._sum.amount ?? 0) >= Number(payment.amount) ? PaymentStatus.REFUNDED : PaymentStatus.PARTIALLY_REFUNDED } });
+      }
+      updated += 1;
+    }
+    return { checked: pending.length, updated };
+  }
 }
