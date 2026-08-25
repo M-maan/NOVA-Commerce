@@ -3,10 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { CheckoutService } from '../checkout/checkout.service';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService, private readonly checkout: CheckoutService) {}
+  constructor(private readonly prisma: PrismaService, private readonly config: ConfigService, private readonly checkout: CheckoutService, private readonly orders: OrdersService) {}
   private async stripe(path: string, params: Record<string, string>) {
     const key = this.config.get<string>('STRIPE_SECRET_KEY');
     if (!key) throw new BadRequestException('Stripe payments are not configured');
@@ -48,6 +49,7 @@ export class PaymentsService {
     const status = event.type === 'payment_intent.succeeded' ? 'SUCCEEDED' : event.type === 'payment_intent.payment_failed' ? 'FAILED' : event.type === 'payment_intent.canceled' ? 'CANCELLED' : payment.status;
     await this.prisma.$transaction([this.prisma.paymentEvent.create({ data: { paymentId: payment.id, providerEventId: event.id, eventType: event.type, status, processedAt: new Date() } }), this.prisma.payment.update({ where: { id: payment.id }, data: { status, failureReason: object?.last_payment_error?.message } }), ...(status === 'SUCCEEDED' ? [this.prisma.checkoutSession.update({ where: { id: payment.checkoutSessionId }, data: { status: 'PROCESSING' } })] : status === 'FAILED' || status === 'CANCELLED' ? [this.prisma.checkoutSession.update({ where: { id: payment.checkoutSessionId }, data: { status: 'FAILED' } })] : [])]);
     if (status === 'FAILED' || status === 'CANCELLED') { const failedCheckout = await this.prisma.checkoutSession.findUnique({ where: { id: payment.checkoutSessionId } }); if (failedCheckout) await this.checkout.releaseStock(failedCheckout.cartId); }
+    if (status === 'SUCCEEDED') await this.orders.createFromPayment(payment.id);
     return { received: true };
   }
 }
