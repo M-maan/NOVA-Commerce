@@ -1,0 +1,6 @@
+'use client';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api/client';
+import type { Order } from '@/lib/api/orders.api';
+export default function AdminOrdersPage() { const [orders, setOrders] = useState<Order[]>([]); const [error, setError] = useState(''); useEffect(() => { api.get<Order[]>('/admin/orders').then(setOrders).catch((e) => setError(e instanceof Error ? e.message : 'Unable to load admin orders.')); }, []); return <main className="mx-auto max-w-6xl space-y-6 p-6"><h1 className="text-3xl font-bold">Admin orders</h1>{error && <p role="alert" className="rounded border border-red-400 p-3 text-red-500">{error}</p>}<div className="overflow-x-auto rounded-lg border"><table className="w-full text-left text-sm"><thead className="bg-muted"><tr><th className="p-3">Order</th><th className="p-3">Status</th><th className="p-3">Payment</th><th className="p-3">Total</th></tr></thead><tbody>{orders.map((order) => <tr key={order.id} className="border-t"><td className="p-3"><Link className="underline" href={`/admin/orders/${order.id}`}>{order.orderNumber}</Link></td><td className="p-3">{order.status}</td><td className="p-3">{order.paymentStatus}</td><td className="p-3">{order.currency} {order.grandTotal}</td></tr>)}</tbody></table></div></main>; }

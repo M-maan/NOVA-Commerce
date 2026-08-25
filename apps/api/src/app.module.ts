@@ -16,6 +16,7 @@ import { InventoryModule } from './modules/inventory/inventory.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
         STRIPE_WEBHOOK_SECRET: Joi.string().allow('').default(''),
         STRIPE_PUBLISHABLE_KEY: Joi.string().allow('').default(''),
         CHECKOUT_TAX_RATE: Joi.number().min(0).max(1).default(0.1),
+        RETURN_WINDOW_DAYS: Joi.number().integer().positive().default(30),
       }),
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
@@ -66,6 +68,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
     CheckoutModule,
     PaymentsModule,
     ShippingModule,
+    OrdersModule,
     HealthModule,
   ],
 })
