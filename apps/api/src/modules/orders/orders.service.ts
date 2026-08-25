@@ -60,6 +60,13 @@ export class OrdersService {
     if (existing) return existing;
     const checkout = payment.checkoutSession;
     if (!checkout.cart.items.length) throw new BadRequestException('Cannot create an order from an empty cart');
+    const variantIds = checkout.cart.items.flatMap((item) => (item.variantId ? [item.variantId] : []));
+    if (variantIds.length) {
+      const activeReservations = await this.prisma.stockReservation.count({
+        where: { cartId: checkout.cartId, productVariantId: { in: variantIds }, status: 'ACTIVE', expiresAt: { gt: new Date() } },
+      });
+      if (activeReservations !== variantIds.length) throw new BadRequestException('Active inventory reservation is required before order creation');
+    }
 
     // convertCart only processes ACTIVE reservations, making this operation safe to retry.
     await this.inventory.convertCart(checkout.cartId);
