@@ -65,6 +65,78 @@ enum ReservationStatus {
   CONVERTED
 }
 
+enum CheckoutStatus {
+  ACTIVE
+  PAYMENT_PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum ShippingMethodStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURN_REQUESTED
+  RETURNED
+  REFUNDED
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PROCESSING
+  PACKED
+  SHIPPED
+  DELIVERED
+  RETURNED
+}
+
+enum ShipmentStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  FAILED
+}
+
+enum ReturnStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  COMPLETED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
 model User {
   id                 String                  @id @default(cuid())
   uuid               String                  @unique @default(uuid())
@@ -88,6 +160,10 @@ model User {
   carts              Cart[]
   wishlists          Wishlist[]
   inventoryMovements InventoryMovement[]
+  checkoutSessions   CheckoutSession[]
+  payments           Payment[]
+  orders             Order[]
+  returnRequests     ReturnRequest[]
 
   @@index([role, status])
   @@map("users")
@@ -197,6 +273,7 @@ model Product {
   recentlyViewed   RecentlyViewedProduct[]
   cartItems        CartItem[]
   wishlistItems    WishlistItem[]
+  orderItems       OrderItem[]
 
   @@index([brandId])
   @@index([status, featured, publishedAt])
@@ -205,20 +282,21 @@ model Product {
 }
 
 model Cart {
-  id             String             @id @default(cuid())
-  uuid           String             @unique @default(uuid())
-  userId         String?            @map("user_id")
-  guestSessionId String?            @map("guest_session_id")
-  status         CartStatus         @default(ACTIVE)
-  currency       String             @default("USD")
-  couponId       String?            @map("coupon_id")
-  createdAt      DateTime           @default(now()) @map("created_at")
-  updatedAt      DateTime           @updatedAt @map("updated_at")
-  expiresAt      DateTime?          @map("expires_at")
-  user           User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items          CartItem[]
-  reservations   StockReservation[]
-  coupon         Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  id               String             @id @default(cuid())
+  uuid             String             @unique @default(uuid())
+  userId           String?            @map("user_id")
+  guestSessionId   String?            @map("guest_session_id")
+  status           CartStatus         @default(ACTIVE)
+  currency         String             @default("USD")
+  couponId         String?            @map("coupon_id")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+  expiresAt        DateTime?          @map("expires_at")
+  user             User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items            CartItem[]
+  reservations     StockReservation[]
+  coupon           Coupon?            @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  checkoutSessions CheckoutSession[]
 
   @@unique([userId, status])
   @@unique([guestSessionId, status])
@@ -349,6 +427,7 @@ model ProductVariant {
   images             ProductImage[]
   cartItems          CartItem[]
   wishlistItems      WishlistItem[]
+  orderItems         OrderItem[]
   inventoryLevels    InventoryLevel[]
   inventoryMovements InventoryMovement[]
   reservations       StockReservation[]
@@ -431,6 +510,216 @@ model StockReservation {
   @@index([status, expiresAt])
   @@index([cartId, status])
   @@map("stock_reservations")
+}
+
+model ShippingMethod {
+  id            String               @id @default(cuid())
+  uuid          String               @unique @default(uuid())
+  name          String
+  code          String               @unique
+  description   String?
+  price         Decimal              @db.Decimal(12, 2)
+  estimatedDays Int                  @map("estimated_days")
+  status        ShippingMethodStatus @default(ACTIVE)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  updatedAt     DateTime             @updatedAt @map("updated_at")
+  checkouts     CheckoutSession[]
+
+  @@index([status])
+  @@map("shipping_methods")
+}
+
+model CheckoutSession {
+  id               String          @id @default(cuid())
+  uuid             String          @unique @default(uuid())
+  userId           String          @map("user_id")
+  cartId           String          @map("cart_id")
+  status           CheckoutStatus  @default(ACTIVE)
+  currency         String          @default("USD")
+  subtotal         Decimal         @db.Decimal(12, 2)
+  discountTotal    Decimal         @map("discount_total") @db.Decimal(12, 2)
+  shippingTotal    Decimal         @map("shipping_total") @db.Decimal(12, 2)
+  taxTotal         Decimal         @map("tax_total") @db.Decimal(12, 2)
+  grandTotal       Decimal         @map("grand_total") @db.Decimal(12, 2)
+  shippingAddress  Json            @map("shipping_address")
+  billingAddress   Json?           @map("billing_address")
+  shippingMethodId String?         @map("shipping_method_id")
+  expiresAt        DateTime        @map("expires_at")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cart             Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  shippingMethod   ShippingMethod? @relation(fields: [shippingMethodId], references: [id], onDelete: SetNull)
+  payments         Payment[]
+  order            Order?
+
+  @@index([userId, status])
+  @@index([expiresAt, status])
+  @@map("checkout_sessions")
+}
+
+model Payment {
+  id                String          @id @default(cuid())
+  uuid              String          @unique @default(uuid())
+  userId            String          @map("user_id")
+  checkoutSessionId String          @map("checkout_session_id")
+  orderId           String?         @map("order_id")
+  provider          String          @default("stripe")
+  providerPaymentId String?         @unique @map("provider_payment_id")
+  amount            Decimal         @db.Decimal(12, 2)
+  currency          String          @default("USD")
+  status            PaymentStatus   @default(PENDING)
+  paymentMethod     String?         @map("payment_method")
+  failureReason     String?         @map("failure_reason")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checkoutSession   CheckoutSession @relation(fields: [checkoutSessionId], references: [id], onDelete: Cascade)
+  events            PaymentEvent[]
+  order             Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([checkoutSessionId])
+  @@map("payments")
+}
+
+model Order {
+  id                      String               @id @default(cuid())
+  uuid                    String               @unique @default(uuid())
+  orderNumber             String               @unique @map("order_number")
+  userId                  String               @map("user_id")
+  checkoutSessionId       String               @unique @map("checkout_session_id")
+  email                   String
+  phone                   String?
+  status                  OrderStatus          @default(PENDING)
+  paymentStatus           PaymentStatus        @default(PENDING) @map("payment_status")
+  fulfillmentStatus       FulfillmentStatus    @default(UNFULFILLED) @map("fulfillment_status")
+  currency                String               @default("USD")
+  subtotal                Decimal              @db.Decimal(12, 2)
+  discountTotal           Decimal              @map("discount_total") @db.Decimal(12, 2)
+  shippingTotal           Decimal              @map("shipping_total") @db.Decimal(12, 2)
+  taxTotal                Decimal              @map("tax_total") @db.Decimal(12, 2)
+  grandTotal              Decimal              @map("grand_total") @db.Decimal(12, 2)
+  couponCode              String?              @map("coupon_code")
+  shippingAddressSnapshot Json                 @map("shipping_address_snapshot")
+  billingAddressSnapshot  Json?                @map("billing_address_snapshot")
+  placedAt                DateTime             @default(now()) @map("placed_at")
+  cancelledAt             DateTime?            @map("cancelled_at")
+  createdAt               DateTime             @default(now()) @map("created_at")
+  updatedAt               DateTime             @updatedAt @map("updated_at")
+  user                    User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  checkoutSession         CheckoutSession      @relation(fields: [checkoutSessionId], references: [id], onDelete: Restrict)
+  items                   OrderItem[]
+  statusHistory           OrderStatusHistory[]
+  shipments               Shipment[]
+  returnRequests          ReturnRequest[]
+  refunds                 Refund[]
+  payments                Payment[]
+
+  @@index([userId, createdAt])
+  @@index([status, fulfillmentStatus])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String          @id @default(cuid())
+  orderId             String          @map("order_id")
+  productId           String          @map("product_id")
+  variantId           String?         @map("variant_id")
+  productNameSnapshot String          @map("product_name_snapshot")
+  variantNameSnapshot String?         @map("variant_name_snapshot")
+  skuSnapshot         String?         @map("sku_snapshot")
+  imageSnapshot       String?         @map("image_snapshot")
+  unitPrice           Decimal         @map("unit_price") @db.Decimal(12, 2)
+  quantity            Int
+  lineTotal           Decimal         @map("line_total") @db.Decimal(12, 2)
+  createdAt           DateTime        @default(now()) @map("created_at")
+  order               Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant             ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id             String       @id @default(cuid())
+  orderId        String       @map("order_id")
+  previousStatus OrderStatus? @map("previous_status")
+  newStatus      OrderStatus  @map("new_status")
+  reason         String?
+  changedBy      String?      @map("changed_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+model Shipment {
+  id             String         @id @default(cuid())
+  orderId        String         @map("order_id")
+  carrier        String
+  trackingNumber String?        @map("tracking_number")
+  trackingUrl    String?        @map("tracking_url")
+  status         ShipmentStatus @default(PENDING)
+  shippedAt      DateTime?      @map("shipped_at")
+  deliveredAt    DateTime?      @map("delivered_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, status])
+  @@map("shipments")
+}
+
+model ReturnRequest {
+  id          String       @id @default(cuid())
+  orderId     String       @map("order_id")
+  userId      String       @map("user_id")
+  status      ReturnStatus @default(REQUESTED)
+  reason      String
+  notes       String?
+  requestedAt DateTime     @default(now()) @map("requested_at")
+  approvedAt  DateTime?    @map("approved_at")
+  rejectedAt  DateTime?    @map("rejected_at")
+  completedAt DateTime?    @map("completed_at")
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, userId])
+  @@index([status, requestedAt])
+  @@map("return_requests")
+}
+
+model Refund {
+  id               String       @id @default(cuid())
+  orderId          String       @map("order_id")
+  paymentId        String       @map("payment_id")
+  amount           Decimal      @db.Decimal(12, 2)
+  reason           String
+  providerRefundId String?      @unique @map("provider_refund_id")
+  status           RefundStatus @default(PENDING)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  order            Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, status])
+  @@map("refunds")
+}
+
+model PaymentEvent {
+  id              String    @id @default(cuid())
+  paymentId       String    @map("payment_id")
+  providerEventId String    @unique @map("provider_event_id")
+  eventType       String    @map("event_type")
+  status          String
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  payment         Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, createdAt])
+  @@map("payment_events")
 }
 
 model ProductOption {

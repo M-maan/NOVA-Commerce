@@ -1,11 +1,20 @@
 type ApiEnvelope<T> = { success: boolean; data: T; meta: { timestamp: string } };
 
-let accessToken: string | null = null;
+const ACCESS_TOKEN_KEY = 'nova-access-token';
+
+// Keep the access token across page refreshes while remaining SSR-safe.
+let accessToken: string | null = typeof window !== 'undefined'
+  ? window.localStorage.getItem(ACCESS_TOKEN_KEY)
+  : null;
 
 export const tokenStore = {
   get: () => accessToken,
   set: (token: string | null) => {
     accessToken = token;
+    if (typeof window !== 'undefined') {
+      if (token) window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
+      else window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+    }
   },
 };
 
@@ -26,18 +35,21 @@ export class ApiClient {
     if (response.status === 401 && retry && path !== '/auth/refresh') {
       try {
         const refreshed = await this.request<{ accessToken: string }>('/auth/refresh', { method: 'POST', body: JSON.stringify({}) }, false);
-        accessToken = refreshed.accessToken;
+        tokenStore.set(refreshed.accessToken);
         return this.request<T>(path, init, false);
       } catch {
-        accessToken = null;
+        tokenStore.set(null);
       }
     }
-    const payload = await response.json().catch(() => null) as ApiEnvelope<T> | { message?: string } | null;
+    const payload = await response.json().catch(() => null) as ApiEnvelope<T> | { message?: string; error?: { message?: string | string[] } } | null;
     if (!response.ok) {
+      const nestedMessage = payload && 'error' in payload ? payload.error?.message : undefined;
+      const rawMessage = payload && 'message' in payload ? payload.message : nestedMessage;
+      const detailMessage = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage;
       const message = response.status === 409
         ? 'An account with this email or phone already exists. Please use different details or log in.'
-        : payload && 'message' in payload
-          ? payload.message
+        : detailMessage
+          ? detailMessage
           : 'Request could not be completed. Please try again.';
       throw new Error(message ?? `API request failed (${response.status})`);
     }

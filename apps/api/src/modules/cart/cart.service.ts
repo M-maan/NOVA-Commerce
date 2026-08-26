@@ -61,7 +61,9 @@ export class CartService {
     if (existing) return existing;
 
     return this.prisma.cart.create({
-      data: { userId, guestSessionId, currency: 'USD' },
+      data: userId
+        ? { userId, currency: 'USD' }
+        : { guestSessionId, currency: 'USD' },
       include: this.cartInclude,
     });
   }

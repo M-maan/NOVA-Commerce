@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsPhoneNumber, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class AddressDto {
   @IsString()
@@ -9,7 +9,8 @@ export class AddressDto {
   @MaxLength(120)
   fullName!: string;
 
-  @IsPhoneNumber()
+  // Accept common local and international formats (for example 03001234567 or +923001234567).
+  @Matches(/^\+?[0-9][0-9\s-]{6,19}$/, { message: 'phone must be a valid phone number' })
   phone!: string;
 
   @IsString()
