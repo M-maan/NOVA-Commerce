@@ -10,7 +10,7 @@ export class ReviewsService {
     if (!Number.isInteger(data.rating) || data.rating < 1 || data.rating > 5) throw new BadRequestException('Rating must be an integer from 1 to 5');
     const product = await this.prisma.product.findUnique({ where: { id: productId }, select: { id: true } });
     if (!product) throw new NotFoundException('Product not found');
-    const order = await this.prisma.order.findFirst({ where: { id: data.orderId, userId, status: { notIn: ['CANCELLED'] }, items: { some: { productId } } }, select: { id: true } });
+    const order = await this.prisma.order.findFirst({ where: { id: data.orderId, userId, status: { in: ['DELIVERED', 'RETURN_REQUESTED', 'RETURNED', 'REFUNDED'] }, items: { some: { productId } } }, select: { id: true } });
     if (!order) throw new ForbiddenException('A delivered purchase of this product is required');
     try { return await this.prisma.review.create({ data: { productId, userId, orderId: data.orderId, rating: data.rating, title: data.title.trim(), comment: data.comment.trim() } }); } catch (error) { if ((error as { code?: string }).code === 'P2002') throw new ConflictException('You have already reviewed this product'); throw error; }
   }
