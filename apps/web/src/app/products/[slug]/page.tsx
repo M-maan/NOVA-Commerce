@@ -7,6 +7,7 @@ import { ProductPrice } from '@/components/catalog/product-price';
 import { ProductGrid } from '@/components/catalog/product-grid';
 import { RecentlyViewed } from '@/components/discovery/recently-viewed';
 import { ProductActions } from '@/components/cart/product-actions';
+import { ReviewSection } from '@/components/reviews/review-section';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +46,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
       </div>
       {related.length ? <section className="mt-12"><h2 className="mb-5 text-2xl font-semibold">Related products</h2><ProductGrid products={related} /></section> : null}
       <RecentlyViewed product={product} />
+      <ReviewSection productId={product.id} />
     </main>
   );
 }
