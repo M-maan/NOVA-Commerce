@@ -1,70 +1,103 @@
 # NOVA Commerce
 
-Production-minded e-commerce foundation: a Next.js storefront and NestJS API in a pnpm workspace.
+Production-minded commerce platform built as a pnpm monorepo with a responsive Next.js storefront and a modular NestJS API.
 
 ## Current status
 
-Milestone 1 and Milestone 2 foundation work is implemented.
+NOVA Commerce currently includes the foundation and commerce flows delivered through Milestone 8:
 
-- Milestone 1: monorepo architecture, NestJS API foundation, Next.js App Router foundation, Prisma/PostgreSQL, Redis/BullMQ, Docker local services, config validation, global validation, exception handling, and response envelope.
-- Milestone 2: authentication, authorization foundation, user profile management, address management, frontend auth pages, protected routes, API client layer, and Zustand auth/session/user stores.
+- Authentication, authorization, customer profiles, and address management.
+- Product catalog with categories, brands, variants, discovery, search, and wishlists.
+- Cart management, inventory reservations, shipping selection, and checkout review.
+- Payment and checkout foundations with order creation and lifecycle handling.
+- Customer order history, order details, cancellation, returns, and invoice routes.
+- Admin order, refund, and return views.
+- Redis/BullMQ-backed background processing and Prisma/PostgreSQL persistence.
+- A responsive, animated storefront homepage with collections, product filters, favorites, bag interactions, and accessible reduced-motion behavior.
 
-Future business domains such as products, catalog search, cart, checkout, payments, orders, inventory, admin CMS, analytics, and notifications are intentionally not implemented yet.
+The homepage visual system is implemented with deterministic React and CSS—no runtime AI-generated content is used.
+
+## Technology
+
+- **Frontend:** Next.js App Router, React, TypeScript, Tailwind CSS, Zustand, and Lucide icons.
+- **Backend:** NestJS, Prisma ORM, PostgreSQL, Redis, and BullMQ.
+- **Tooling:** pnpm workspaces, Turborepo, ESLint, Prettier, Docker Compose, and Vercel configuration.
 
 ## Quick start
 
-1. Copy `.env.example` to `.env` and choose non-default local secrets.
-2. Run `docker compose up -d` to start PostgreSQL and Redis.
-3. Copy `apps/api/.env.example` to `apps/api/.env` and update the credentials if changed.
-4. Run `pnpm install`, then `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`.
+### Prerequisites
 
-The web app is at `http://localhost:3000`; API health is at `http://localhost:4000/api/v1/health`.
+- Node.js 22+
+- pnpm 10+
+- Docker Desktop
 
-## Layout
+### Local setup
 
-- `apps/api` — NestJS modules, Prisma, Redis, BullMQ and API conventions.
-- `apps/web` — Next.js App Router storefront shell.
-- `packages` — place reusable contracts, UI, and config packages here as the product grows.
+1. Start PostgreSQL and Redis:
 
-## Milestone 2 auth scope
+   ```bash
+   docker compose up -d
+   ```
 
-Backend foundation:
+2. Copy `apps/api/.env.example` to `apps/api/.env` and configure local credentials.
 
-- Register, login, logout, refresh token, forgot password placeholder, reset password placeholder, and current-user endpoint.
-- JWT access tokens with refresh-token persistence and rotation.
-- Password hashing with bcrypt.
-- RBAC foundation with role enum, roles decorator, roles guard, and JWT guard.
-- User profile and address APIs.
+3. Install dependencies and prepare the database:
 
-Frontend foundation:
+   ```bash
+   pnpm install
+   pnpm db:generate
+   pnpm db:migrate
+   ```
 
-- Login, register, forgot password, reset password, profile, profile settings, and address pages.
-- Protected route handling for authenticated customer areas.
-- API client with access-token handling and refresh retry support.
-- Zustand stores for auth, user, session, and UI state.
+4. Start the web and API applications:
 
-## Architecture principles
+   ```bash
+   pnpm dev
+   ```
 
-- Domain modules own their controllers, services, DTOs and policies.
-- Prisma is the database boundary; migrations are version-controlled schema changes.
-- Redis backs queues, caching, rate limits and ephemeral state—not the source of truth.
-- Controllers return a uniform response envelope and global exception handling prevents leaking internals.
-- Environment variables are validated at boot, so invalid deploys fail early.
+The storefront runs at `http://localhost:3000`. The API health endpoint is available at `http://localhost:4000/api/v1/health`.
 
-## Validation
+## Workspace layout
 
-Useful checks:
+```text
+NOVA-Commerce/
+├── apps/
+│   ├── api/       # NestJS modules, Prisma schema, queues, and API services
+│   └── web/       # Next.js storefront, account, checkout, and order routes
+├── docs/          # Architecture, milestone audits, and QA reports
+├── tools/         # Smoke tests and QA helpers
+└── docker-compose.yml
+```
+
+## Core architecture
+
+- Domain modules own their controllers, services, DTOs, and policies.
+- Prisma is the database boundary, with schema changes tracked through migrations.
+- PostgreSQL remains the source of truth; Redis supports queues and ephemeral state.
+- API controllers use a consistent response envelope and centralized exception handling.
+- Environment configuration is validated during application startup.
+- Access tokens, refresh-token rotation, guards, and role-based authorization protect customer and admin flows.
+
+## Useful commands
+
+```bash
+pnpm dev
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm db:generate
+pnpm db:migrate
+pnpm --filter @nova/api prisma:deploy
+```
+
+## Validation and reports
+
+Milestone audit and QA reports are maintained in [`docs`](./docs). Existing smoke-test helpers are available under [`tools`](./tools).
+
+Before merging changes, run:
 
 ```bash
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm --filter @nova/api prisma:deploy
-```
-
-Milestone 2 QA helpers:
-
-```bash
-powershell -ExecutionPolicy Bypass -File tools/verify-auth-smoke.ps1
-node tools/browser-qa-milestone2.mjs
 ```
