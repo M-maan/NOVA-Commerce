@@ -19,6 +19,9 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 
 @Module({
   imports: [
@@ -73,6 +76,9 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     OrdersModule,
     NotificationsModule,
     ReviewsModule,
+    AnalyticsModule,
+    CustomersModule,
+    PromotionsModule,
     HealthModule,
   ],
 })
