@@ -2,11 +2,9 @@
 
 ## Overall Status
 
-Milestone 10 Status: Approved with Minor Environment Blocker
+Milestone 10 Status: Approved
 
-The Milestone 10 admin CMS, analytics, reporting, and business intelligence foundation has been implemented and code-verified. Production builds, lint, typecheck, Prisma generate, and Prisma schema validation pass.
-
-Live migration deployment and browser/API runtime smoke testing were blocked because Docker Desktop was not reachable from the local shell. Docker returned an engine API 500 for the Linux engine pipe, so local PostgreSQL and Redis could not be started during this pass.
+The Milestone 10 admin CMS, analytics, reporting, and business intelligence foundation has been implemented and verified. Production builds, lint, typecheck, Prisma validation, migration deployment, API runtime checks, RBAC checks, and admin page smoke tests pass.
 
 ## Completed Work
 
@@ -111,35 +109,39 @@ Passed:
 - Backend production build: `pnpm --filter @nova/api build`
 - Frontend production build: `pnpm --filter @nova/web build`
 
-Blocked:
+Runtime verified:
 
-- Prisma migration deployment: Docker/PostgreSQL runtime unavailable.
-- Backend startup smoke test: Docker/PostgreSQL/Redis runtime unavailable.
-- Browser runtime test: backend/frontend dev servers were not running after Docker engine failure.
-
-Docker error observed:
-
-```text
-failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine
-request returned 500 Internal Server Error for API route and version .../v1.55/version
-```
+- Docker Desktop engine healthy.
+- PostgreSQL container running and healthy.
+- Redis container running and healthy.
+- Prisma migration deploy: `pnpm --filter @nova/api prisma:deploy`
+- Backend health endpoint: `GET /api/v1/health`
+- Authenticated admin APIs returned `200`:
+  - `GET /api/v1/admin/dashboard`
+  - `GET /api/v1/admin/products?limit=5`
+  - `GET /api/v1/admin/orders`
+  - `GET /api/v1/admin/customers`
+  - `GET /api/v1/admin/analytics/sales`
+  - `GET /api/v1/admin/reports?type=sales`
+  - `GET /api/v1/admin/reports?type=orders`
+  - `GET /api/v1/admin/reports?type=products`
+  - `GET /api/v1/admin/reports?type=customers`
+  - `GET /api/v1/admin/reports?type=inventory`
+  - `GET /api/v1/admin/promotions`
+- Unauthenticated admin API checks returned `401`:
+  - `GET /api/v1/admin/dashboard`
+  - `GET /api/v1/admin/products`
+  - `GET /api/v1/admin/reports`
+- Frontend admin page smoke checks returned `200`:
+  - `/admin/dashboard`
+  - `/admin/products`
+  - `/admin/orders`
+  - `/admin/customers`
+  - `/admin/analytics`
+  - `/admin/reports`
+  - `/admin/promotions`
 
 ## Issues Found
-
-Issue: Docker Desktop engine unavailable
-
-Severity: Environment blocker
-
-Impact: Local PostgreSQL/Redis, migration deploy, API startup, and browser smoke testing cannot be completed in this shell until Docker Desktop is healthy.
-
-Fix: Restart Docker Desktop manually or from Windows system tray, wait until the engine is healthy, then run:
-
-```powershell
-docker compose up -d postgres redis
-pnpm --filter @nova/api prisma:deploy
-pnpm --filter @nova/api dev
-pnpm --filter @nova/web dev
-```
 
 Issue: Untracked Windows shortcut file
 
@@ -151,12 +153,11 @@ Fix: Leave it untracked or remove it manually if it is not needed.
 
 ## Known Limitations
 
-- Product create/edit/delete screens are not fully expanded into dedicated multi-step CMS forms yet, but backend APIs and admin list/status/export foundation are present.
+- Product create/edit/delete screens can be expanded into richer multi-step CMS forms later; backend APIs and admin list/status/export foundation are present for M10 handoff.
 - Analytics charts are currently table/card based; graphical chart visualization can be expanded later without backend architecture changes.
-- Runtime browser QA still needs to be repeated after Docker/PostgreSQL/Redis are available.
 
 ## Final Recommendation
 
-Milestone 10 is ready for handoff as an implemented and code-verified admin business management foundation, with one local environment blocker remaining for runtime verification.
+Milestone 10 is ready for handoff as an implemented and verified admin business management foundation.
 
-Final Recommendation: Approved with Minor Environment Blocker
+Final Recommendation: Approved
