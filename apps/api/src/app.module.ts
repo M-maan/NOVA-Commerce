@@ -22,6 +22,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
 
 @Module({
   imports: [
@@ -79,6 +80,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     AnalyticsModule,
     CustomersModule,
     PromotionsModule,
+    ReportingModule,
     HealthModule,
   ],
 })

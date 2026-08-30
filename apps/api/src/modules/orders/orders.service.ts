@@ -209,7 +209,18 @@ export class OrdersService {
     return this.getMine(userId, id).then((order) => ({ orderNumber: order.orderNumber, issuedAt: order.placedAt, currency: order.currency, totals: { subtotal: order.subtotal, discount: order.discountTotal, shipping: order.shippingTotal, tax: order.taxTotal, grandTotal: order.grandTotal }, items: order.items, shippingAddress: order.shippingAddressSnapshot, billingAddress: order.billingAddressSnapshot }));
   }
 
-  listAdmin() { return this.prisma.order.findMany({ include: this.orderInclude, orderBy: { createdAt: 'desc' } }); }
+  listAdmin(filters: { q?: string; status?: OrderStatus } = {}) {
+    const where: Prisma.OrderWhereInput = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.q) {
+      where.OR = [
+        { orderNumber: { contains: filters.q, mode: 'insensitive' } },
+        { email: { contains: filters.q, mode: 'insensitive' } },
+        { user: { email: { contains: filters.q, mode: 'insensitive' } } },
+      ];
+    }
+    return this.prisma.order.findMany({ where, include: this.orderInclude, orderBy: { createdAt: 'desc' } });
+  }
   adminGet(id: string) { return this.prisma.order.findUnique({ where: { id }, include: this.orderInclude }).then((x) => { if (!x) throw new NotFoundException('Order not found'); return x; }); }
 
   async addShipment(orderId: string, data: { carrier: string; trackingNumber?: string; trackingUrl?: string; status?: ShipmentStatus }, actor: string) {

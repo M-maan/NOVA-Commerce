@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { OrderStatus, ReturnStatus, Role, ShipmentStatus } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -27,7 +27,7 @@ export class OrdersController {
 export class AdminOrdersController {
   constructor(private readonly orders: OrdersService) {}
 
-  @Get('orders') list() { return this.orders.listAdmin(); }
+  @Get('orders') list(@Query('q') q?: string, @Query('status') status?: OrderStatus) { return this.orders.listAdmin({ q, status }); }
   @Get('orders/:id') get(@Param('id') id: string) { return this.orders.adminGet(id); }
   @Patch('orders/:id/status') status(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { status: OrderStatus; reason?: string }) { return this.orders.transition(id, body.status, user.id, body.reason); }
   @Post('orders/:id/shipment') shipment(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() body: { carrier: string; trackingNumber?: string; trackingUrl?: string; status?: ShipmentStatus }) { return this.orders.addShipment(id, body, user.id); }
