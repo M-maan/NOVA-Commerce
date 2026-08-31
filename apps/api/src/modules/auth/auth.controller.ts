@@ -70,6 +70,7 @@ export class AuthController {
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       path: '/api/v1/auth',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
     });
   }
 }

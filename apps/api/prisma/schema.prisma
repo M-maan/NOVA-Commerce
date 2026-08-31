@@ -382,6 +382,7 @@ model Promotion {
   updatedAt          DateTime      @updatedAt @map("updated_at")
   coupons            Coupon[]
 
+  @@index([status, startsAt, endsAt])
   @@map("promotions")
 }
 
@@ -399,6 +400,8 @@ model Coupon {
   promotion   Promotion     @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   carts       Cart[]
 
+  @@index([promotionId])
+  @@index([status, startsAt, expiresAt])
   @@map("coupons")
 }
 
@@ -488,6 +491,7 @@ model InventoryLevel {
 
   @@unique([warehouseId, productVariantId])
   @@index([productVariantId])
+  @@index([quantityAvailable])
   @@map("inventory_levels")
 }
 
@@ -638,6 +642,9 @@ model Order {
 
   @@index([userId, createdAt])
   @@index([status, fulfillmentStatus])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([email])
   @@map("orders")
 }
 
