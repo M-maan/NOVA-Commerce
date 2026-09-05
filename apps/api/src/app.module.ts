@@ -83,6 +83,7 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
           enableReadyCheck: false,
           maxRetriesPerRequest: null,
         },
+        skipVersionCheck: true,
       }),
       inject: [ConfigService],
     }),
