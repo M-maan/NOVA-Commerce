@@ -76,7 +76,16 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
     // rate-limiting normal navigation; auth endpoints retain their stricter
     // per-route five-attempt policy.
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
-    BullModule.forRootAsync({ useFactory: (config: ConfigService) => ({ connection: { url: config.getOrThrow('REDIS_URL') } }), inject: [ConfigService] }),
+    BullModule.forRootAsync({
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          url: config.getOrThrow<string>('REDIS_URL'),
+          enableReadyCheck: false,
+          maxRetriesPerRequest: null,
+        },
+      }),
+      inject: [ConfigService],
+    }),
     DatabaseModule,
     QueueModule,
     AuthModule,

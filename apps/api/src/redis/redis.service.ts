@@ -5,6 +5,11 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   readonly client: Redis;
-  constructor(config: ConfigService) { this.client = new Redis(config.getOrThrow<string>('REDIS_URL'), { maxRetriesPerRequest: null }); }
+  constructor(config: ConfigService) {
+    this.client = new Redis(config.getOrThrow<string>('REDIS_URL'), {
+      enableReadyCheck: false,
+      maxRetriesPerRequest: null,
+    });
+  }
   async onModuleDestroy() { await this.client.quit(); }
 }
