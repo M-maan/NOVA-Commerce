@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
+    ,"test": "node ../../tools/smoke-test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
