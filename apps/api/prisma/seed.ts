@@ -86,6 +86,32 @@ async function main() {
       },
     }));
 
+  // Curated demo catalog so local and staging storefronts have enough products
+  // to exercise search, filters, pagination and product-card layouts.
+  const demoProducts = [
+    ['NOVA Air Desk Lamp', 'nova-air-desk-lamp', 89, 'photo-1507473885765-e6ed057f782c'],
+    ['NOVA Slate Backpack', 'nova-slate-backpack', 119, 'photo-1553062407-98eeb64c6a62'],
+    ['NOVA Arc Watch', 'nova-arc-watch', 175, 'photo-1524805444758-089113d48a6d'],
+    ['NOVA Form Chair', 'nova-form-chair', 249, 'photo-1503602642458-232111445657'],
+    ['NOVA Studio Speaker', 'nova-studio-speaker', 139, 'photo-1608043152269-423dbba4e7e1'],
+    ['NOVA Field Jacket', 'nova-field-jacket', 210, 'photo-1551488831-00ddcb6c6bd3'],
+    ['NOVA Everyday Tote', 'nova-everyday-tote', 96, 'photo-1548036328-c9fa89d128fa'],
+  ] as const;
+  for (const [name, slug, price, photo] of demoProducts) {
+    await prisma.product.upsert({
+      where: { slug },
+      update: { status: CatalogStatus.ACTIVE, publishedAt: new Date(), brandId: novaBrand.id },
+      create: {
+        name, slug, shortDescription: `${name} — considered design for everyday use.`,
+        description: `A NOVA demo catalog product for storefront and search verification.`,
+        brandId: novaBrand.id, productType: ProductType.SIMPLE, status: CatalogStatus.ACTIVE,
+        basePrice: price, currency: 'USD', featured: true, publishedAt: new Date(),
+        categories: { create: [{ categoryId: electronics.id }] },
+        images: { create: [{ imageUrl: `https://images.unsplash.com/${photo}?w=900&auto=format&fit=crop`, publicId: `nova-demo/${slug}`, altText: name, isPrimary: true, sortOrder: 1 }] },
+      },
+    });
+  }
+
   const warehouse = await prisma.warehouse.upsert({
     where: { code: 'MAIN' },
     update: { status: 'ACTIVE' },
