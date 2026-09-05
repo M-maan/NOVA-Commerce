@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "installCommand": "corepack enable && corepack pnpm install --frozen-lockfile --filter @nova/web...",
-  "buildCommand": "corepack pnpm --filter @nova/web build"
+  "installCommand": "corepack enable && corepack pnpm install --frozen-lockfile",
+  "buildCommand": "corepack pnpm --dir apps/web exec next build"
 }
