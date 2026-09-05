@@ -5,7 +5,8 @@ import { ProductBadge } from './product-badge';
 import { ProductPrice } from './product-price';
 
 export function ProductCard({ product }: { product: Product }) {
-  const image = product.images.find((item) => item.isPrimary) ?? product.images[0];
+  const images = product.images.length ? product.images : product.variants.flatMap((variant) => variant.images ?? []);
+  const image = images.find((item) => item.isPrimary) ?? images[0];
   return (
     <Link href={`/products/${product.slug}`} className="group rounded-xl border bg-card p-3 transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="aspect-square overflow-hidden rounded-lg bg-muted">

@@ -1,7 +1,9 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
@@ -17,6 +19,13 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
+import { ReportingModule } from './modules/reporting/reporting.module';
+import { RequestContextMiddleware } from './common/middleware/request-context.middleware';
 
 @Module({
   imports: [
@@ -52,6 +61,9 @@ import { OrdersModule } from './modules/orders/orders.module';
         STRIPE_PUBLISHABLE_KEY: Joi.string().allow('').default(''),
         CHECKOUT_TAX_RATE: Joi.number().min(0).max(1).default(0.1),
         RETURN_WINDOW_DAYS: Joi.number().integer().positive().default(30),
+        LOG_LEVEL: Joi.string().valid('error', 'warn', 'log', 'debug', 'verbose', 'info').default('info'),
+        SENTRY_DSN: Joi.string().allow('').default(''),
+        HEALTHCHECK_TIMEOUT_MS: Joi.number().integer().positive().default(3000),
       }),
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
@@ -69,7 +81,23 @@ import { OrdersModule } from './modules/orders/orders.module';
     PaymentsModule,
     ShippingModule,
     OrdersModule,
+    NotificationsModule,
+    ReviewsModule,
+    AnalyticsModule,
+    CustomersModule,
+    PromotionsModule,
+    ReportingModule,
     HealthModule,
   ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestContextMiddleware).forRoutes('{*path}');
+  }
+}

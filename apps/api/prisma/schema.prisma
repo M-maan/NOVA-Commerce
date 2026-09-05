@@ -137,33 +137,51 @@ enum RefundStatus {
   CANCELLED
 }
 
+enum NotificationType {
+  ORDER_CONFIRMED
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  ORDER_CANCELLED
+  RETURN_APPROVED
+  REFUND_COMPLETED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
-  id                 String                  @id @default(cuid())
-  uuid               String                  @unique @default(uuid())
-  firstName          String?                 @map("first_name")
-  lastName           String?                 @map("last_name")
-  fullName           String?                 @map("full_name")
-  email              String                  @unique
-  phone              String?                 @unique
-  passwordHash       String                  @map("password_hash")
-  profileImage       String?                 @map("profile_image")
-  role               Role                    @default(CUSTOMER)
-  emailVerified      Boolean                 @default(false) @map("email_verified")
-  phoneVerified      Boolean                 @default(false) @map("phone_verified")
-  status             UserStatus              @default(PENDING)
-  lastLogin          DateTime?               @map("last_login")
-  createdAt          DateTime                @default(now()) @map("created_at")
-  updatedAt          DateTime                @updatedAt @map("updated_at")
-  addresses          UserAddress[]
-  refreshTokens      RefreshToken[]
-  recentlyViewed     RecentlyViewedProduct[]
-  carts              Cart[]
-  wishlists          Wishlist[]
-  inventoryMovements InventoryMovement[]
-  checkoutSessions   CheckoutSession[]
-  payments           Payment[]
-  orders             Order[]
-  returnRequests     ReturnRequest[]
+  id                     String                  @id @default(cuid())
+  uuid                   String                  @unique @default(uuid())
+  firstName              String?                 @map("first_name")
+  lastName               String?                 @map("last_name")
+  fullName               String?                 @map("full_name")
+  email                  String                  @unique
+  phone                  String?                 @unique
+  passwordHash           String                  @map("password_hash")
+  profileImage           String?                 @map("profile_image")
+  role                   Role                    @default(CUSTOMER)
+  emailVerified          Boolean                 @default(false) @map("email_verified")
+  phoneVerified          Boolean                 @default(false) @map("phone_verified")
+  status                 UserStatus              @default(PENDING)
+  lastLogin              DateTime?               @map("last_login")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  addresses              UserAddress[]
+  refreshTokens          RefreshToken[]
+  recentlyViewed         RecentlyViewedProduct[]
+  carts                  Cart[]
+  wishlists              Wishlist[]
+  inventoryMovements     InventoryMovement[]
+  checkoutSessions       CheckoutSession[]
+  payments               Payment[]
+  orders                 Order[]
+  returnRequests         ReturnRequest[]
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  reviews                Review[]
 
   @@index([role, status])
   @@map("users")
@@ -274,6 +292,7 @@ model Product {
   cartItems        CartItem[]
   wishlistItems    WishlistItem[]
   orderItems       OrderItem[]
+  reviews          Review[]
 
   @@index([brandId])
   @@index([status, featured, publishedAt])
@@ -363,6 +382,7 @@ model Promotion {
   updatedAt          DateTime      @updatedAt @map("updated_at")
   coupons            Coupon[]
 
+  @@index([status, startsAt, endsAt])
   @@map("promotions")
 }
 
@@ -380,6 +400,8 @@ model Coupon {
   promotion   Promotion     @relation(fields: [promotionId], references: [id], onDelete: Cascade)
   carts       Cart[]
 
+  @@index([promotionId])
+  @@index([status, startsAt, expiresAt])
   @@map("coupons")
 }
 
@@ -469,6 +491,7 @@ model InventoryLevel {
 
   @@unique([warehouseId, productVariantId])
   @@index([productVariantId])
+  @@index([quantityAvailable])
   @@map("inventory_levels")
 }
 
@@ -615,9 +638,13 @@ model Order {
   returnRequests          ReturnRequest[]
   refunds                 Refund[]
   payments                Payment[]
+  reviews                 Review[]
 
   @@index([userId, createdAt])
   @@index([status, fulfillmentStatus])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([email])
   @@map("orders")
 }
 
@@ -706,6 +733,53 @@ model Refund {
 
   @@index([orderId, status])
   @@map("refunds")
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           @map("user_id")
+  type       NotificationType
+  title      String
+  message    String
+  readStatus Boolean          @default(false) @map("read_status")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readStatus, createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                  String   @id @default(cuid())
+  userId              String   @unique @map("user_id")
+  emailEnabled        Boolean  @default(true) @map("email_enabled")
+  notificationEnabled Boolean  @default(true) @map("notification_enabled")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model Review {
+  id        String       @id @default(cuid())
+  productId String       @map("product_id")
+  userId    String       @map("user_id")
+  orderId   String       @map("order_id")
+  rating    Int
+  title     String
+  comment   String
+  status    ReviewStatus @default(PENDING)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, userId])
+  @@index([productId, status, createdAt])
+  @@map("reviews")
 }
 
 model PaymentEvent {

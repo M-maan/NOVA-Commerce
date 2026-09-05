@@ -13,12 +13,14 @@ import {
   RefundStatus,
   ReturnStatus,
   ShipmentStatus,
+  NotificationType,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { QUEUES } from '../../queue/queue.constants';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const transitions: Record<OrderStatus, OrderStatus[]> = {
   PENDING: ['CONFIRMED', 'CANCELLED'],
@@ -39,6 +41,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
     private readonly config: ConfigService,
+    private readonly inAppNotifications: NotificationsService,
     @InjectQueue(QUEUES.NOTIFICATIONS) private readonly notifications: Queue,
   ) {}
 
@@ -113,6 +116,7 @@ export class OrdersService {
       return created;
     });
     await this.notifications.add('order-confirmed', { recipient: order.email, template: 'order-confirmed', orderId: order.id }, { removeOnComplete: true });
+    await this.inAppNotifications.create(order.userId, NotificationType.ORDER_CONFIRMED, 'Order confirmed', `Your order ${order.orderNumber} has been confirmed.`);
     return order;
   }
 
@@ -153,7 +157,19 @@ export class OrdersService {
       return order;
     });
     await this.notifications.add(`order-${status.toLowerCase()}`, { template: `order-${status.toLowerCase()}`, orderId: id }, { removeOnComplete: true });
+    const notificationType = this.notificationTypeFor(status);
+    if (notificationType) await this.inAppNotifications.create(updated.userId, notificationType, `Order ${status.toLowerCase()}`, `Your order status changed to ${status.toLowerCase().replace('_', ' ')}.`);
     return updated;
+  }
+
+  private notificationTypeFor(status: OrderStatus): NotificationType | undefined {
+    const map: Partial<Record<OrderStatus, NotificationType>> = {
+      CONFIRMED: NotificationType.ORDER_CONFIRMED,
+      SHIPPED: NotificationType.ORDER_SHIPPED,
+      DELIVERED: NotificationType.ORDER_DELIVERED,
+      CANCELLED: NotificationType.ORDER_CANCELLED,
+    };
+    return map[status];
   }
 
   private fulfillmentFor(status: OrderStatus) {
@@ -193,7 +209,18 @@ export class OrdersService {
     return this.getMine(userId, id).then((order) => ({ orderNumber: order.orderNumber, issuedAt: order.placedAt, currency: order.currency, totals: { subtotal: order.subtotal, discount: order.discountTotal, shipping: order.shippingTotal, tax: order.taxTotal, grandTotal: order.grandTotal }, items: order.items, shippingAddress: order.shippingAddressSnapshot, billingAddress: order.billingAddressSnapshot }));
   }
 
-  listAdmin() { return this.prisma.order.findMany({ include: this.orderInclude, orderBy: { createdAt: 'desc' } }); }
+  listAdmin(filters: { q?: string; status?: OrderStatus } = {}) {
+    const where: Prisma.OrderWhereInput = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.q) {
+      where.OR = [
+        { orderNumber: { contains: filters.q, mode: 'insensitive' } },
+        { email: { contains: filters.q, mode: 'insensitive' } },
+        { user: { email: { contains: filters.q, mode: 'insensitive' } } },
+      ];
+    }
+    return this.prisma.order.findMany({ where, include: this.orderInclude, orderBy: { createdAt: 'desc' } });
+  }
   adminGet(id: string) { return this.prisma.order.findUnique({ where: { id }, include: this.orderInclude }).then((x) => { if (!x) throw new NotFoundException('Order not found'); return x; }); }
 
   async addShipment(orderId: string, data: { carrier: string; trackingNumber?: string; trackingUrl?: string; status?: ShipmentStatus }, actor: string) {
