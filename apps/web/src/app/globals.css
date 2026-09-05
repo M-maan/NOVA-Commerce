@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 
-:root { --ink:#14243a; --paper:#f4f3ee; --muted:#727a86; --lime:#d8ef64; --coral:#ff765e; --line:rgba(20,36,58,.15); }
+:root { --ink:#171513; --paper:#f6f1e8; --muted:#766f66; --lime:#d6b36a; --coral:#a8783e; --line:rgba(23,21,19,.16); }
 * { box-sizing:border-box; border-color:var(--line); }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,Helvetica,sans-serif; }
