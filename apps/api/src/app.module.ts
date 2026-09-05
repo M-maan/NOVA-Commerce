@@ -63,10 +63,19 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
         RETURN_WINDOW_DAYS: Joi.number().integer().positive().default(30),
         LOG_LEVEL: Joi.string().valid('error', 'warn', 'log', 'debug', 'verbose', 'info').default('info'),
         SENTRY_DSN: Joi.string().allow('').default(''),
+        CLOUDINARY_CLOUD_NAME: Joi.string().allow('').default(''),
+        CLOUDINARY_UPLOAD_PRESET: Joi.string().allow('').default(''),
+        CLOUDINARY_API_KEY: Joi.string().allow('').default(''),
+        CLOUDINARY_API_SECRET: Joi.string().allow('').default(''),
+        CLOUDINARY_FOLDER: Joi.string().allow('').default('nova-commerce/products'),
         HEALTHCHECK_TIMEOUT_MS: Joi.number().integer().positive().default(3000),
       }),
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    // A storefront page can legitimately fan out into catalog, cart, profile,
+    // recommendation, and review requests. Keep abusive bursts bounded without
+    // rate-limiting normal navigation; auth endpoints retain their stricter
+    // per-route five-attempt policy.
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     BullModule.forRootAsync({ useFactory: (config: ConfigService) => ({ connection: { url: config.getOrThrow('REDIS_URL') } }), inject: [ConfigService] }),
     DatabaseModule,
     QueueModule,

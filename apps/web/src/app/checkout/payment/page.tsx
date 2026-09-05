@@ -1,6 +1,63 @@
 'use client';
-import Link from 'next/link'; import { Suspense, useState } from 'react'; import { useSearchParams, useRouter } from 'next/navigation'; import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js'; import { loadStripe } from '@stripe/stripe-js'; import { checkoutApi } from '@/lib/api/checkout.api'; import { paymentsApi } from '@/lib/api/payments.api';
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '');
-function PaymentForm({ sessionId }: { sessionId: string }) { const stripe = useStripe(); const elements = useElements(); const router = useRouter(); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); async function submit(e: React.FormEvent) { e.preventDefault(); if (!stripe || !elements) return; setBusy(true); setError(''); const result = await stripe.confirmPayment({ elements, redirect: 'if_required' }); if (result.error) { setError(result.error.message ?? 'Payment failed'); setBusy(false); return; } try { const paymentId = result.paymentIntent?.id; if (paymentId) await checkoutApi.recalculate(sessionId); router.push(`/checkout/success?session=${sessionId}&payment=${paymentId ?? ''}`); } catch (err) { setError((err as Error).message); setBusy(false); } } return <form onSubmit={submit} className="space-y-5"><PaymentElement /><button disabled={busy || !stripe || !elements} className="w-full rounded bg-primary px-4 py-3 text-primary-foreground">{busy ? 'Processing…' : 'Pay securely with Stripe'}</button>{error && <p className="rounded border border-red-400 p-3 text-red-500">{error}</p>}</form>; }
-function PaymentContent() { const id = useSearchParams().get('session') ?? ''; const [clientSecret, setClientSecret] = useState(''); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); async function start() { setLoading(true); try { const result = await paymentsApi.createIntent(id); if (!result.clientSecret) throw new Error('Stripe test mode is not configured.'); setClientSecret(result.clientSecret); } catch (e) { setError((e as Error).message); } finally { setLoading(false); } } return <main className="mx-auto max-w-3xl p-8"><h1 className="text-3xl font-bold">Payment</h1><p className="my-4 text-muted-foreground">Secure Stripe test-mode payment. Card details are handled by Stripe and never stored by NOVA.</p>{error && <p className="mb-4 rounded border border-red-400 p-3 text-red-500">{error}</p>}{clientSecret ? <Elements stripe={stripePromise} options={{ clientSecret }}><PaymentForm sessionId={id} /></Elements> : <button disabled={loading} onClick={start} className="rounded bg-primary px-4 py-2 text-primary-foreground">{loading ? 'Preparing payment…' : 'Continue to secure payment'}</button>}<Link className="mt-6 block underline" href={`/checkout/review?session=${id}`}>Back to review</Link></main>; }
-export default function PaymentPage() { return <Suspense fallback={<main className="p-8">Loading payment…</main>}><PaymentContent /></Suspense>; }
+
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import { ArrowRight, CreditCard, LockKeyhole } from 'lucide-react';
+import { checkoutApi, type CheckoutSession } from '@/lib/api/checkout.api';
+import { paymentsApi, type PaymentIntentResponse } from '@/lib/api/payments.api';
+import { CheckoutShell, MoneySummary } from '@/components/checkout/checkout-shell';
+
+function PaymentForm({ sessionId, paymentId }: { sessionId: string; paymentId: string }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!stripe || !elements) return;
+    setBusy(true);
+    setError('');
+    const returnUrl = `${window.location.origin}/checkout/success?session=${encodeURIComponent(sessionId)}&payment=${encodeURIComponent(paymentId)}`;
+    const result = await stripe.confirmPayment({ elements, confirmParams: { return_url: returnUrl }, redirect: 'if_required' });
+    if (result.error) {
+      setError(result.error.message ?? 'Your payment could not be completed. Check the details and try again.');
+      setBusy(false);
+      return;
+    }
+    router.push(`/checkout/success?session=${encodeURIComponent(sessionId)}&payment=${encodeURIComponent(paymentId)}`);
+  }
+
+  return <form onSubmit={submit} className="stripe-payment-form"><PaymentElement options={{ layout: 'tabs' }} /><button type="submit" className="checkout-primary" disabled={busy || !stripe || !elements}>{busy ? 'Confirming securely…' : <>Pay securely <LockKeyhole size={16} /></>}</button>{error ? <div role="alert" className="checkout-error">{error}</div> : null}<p className="stripe-legal">Payments are encrypted and processed by Stripe. NOVA never stores your card number.</p></form>;
+}
+
+function PaymentContent() {
+  const sessionId = useSearchParams().get('session') ?? '';
+  const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [intent, setIntent] = useState<PaymentIntentResponse | null>(null);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const publishableKey = intent?.publishableKey ?? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? '';
+  const stripePromise = useMemo(() => publishableKey ? loadStripe(publishableKey) : null, [publishableKey]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    Promise.all([checkoutApi.get(sessionId), paymentsApi.createIntent(sessionId)])
+      .then(([nextSession, nextIntent]) => { setSession(nextSession); setIntent(nextIntent); })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Secure payment could not be prepared.'))
+      .finally(() => setLoading(false));
+  }, [sessionId]);
+
+  const summary = session ? <MoneySummary subtotal={Number(session.subtotal)} discount={Number(session.discountTotal)} shipping={Number(session.shippingTotal)} tax={Number(session.taxTotal)} total={Number(session.grandTotal)} currency={session.currency} /> : null;
+  return <CheckoutShell step={4} title="Complete your order." eyebrow="SECURE PAYMENT" aside={summary}>
+    {loading && sessionId ? <div className="checkout-loading"><span />Opening Stripe’s secure payment form…</div> : null}
+    {!sessionId || error ? <div role="alert" className="checkout-error">{!sessionId ? 'Checkout session is missing.' : error}<button type="button" onClick={() => location.reload()}>Try again</button></div> : null}
+    {!loading && intent?.clientSecret && stripePromise ? <><div className="checkout-card-heading"><div><p>Step 4 of 4</p><h2>Payment details</h2></div><CreditCard size={22} /></div><Elements stripe={stripePromise} options={{ clientSecret: intent.clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#171b1a', colorText: '#171b1a', colorBackground: '#f7f5ef', borderRadius: '2px', fontFamily: 'Arial, sans-serif' } } }}><PaymentForm sessionId={sessionId} paymentId={intent.payment.id} /></Elements></> : null}
+    {!loading && !error && (!intent?.clientSecret || !stripePromise) ? <div className="checkout-empty compact"><h2>Stripe configuration is incomplete.</h2><p>Add matching secret and publishable keys, then retry.</p><button type="button" onClick={() => location.reload()}>Retry setup <ArrowRight size={15} /></button></div> : null}
+  </CheckoutShell>;
+}
+
+export default function PaymentPage() { return <Suspense fallback={<main className="checkout-page"><div className="checkout-loading"><span />Loading secure payment…</div></main>}><PaymentContent /></Suspense>; }

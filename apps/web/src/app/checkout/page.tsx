@@ -1,14 +1,57 @@
 'use client';
+
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ArrowRight, MapPin } from 'lucide-react';
 import { cartApi } from '@/lib/api/cart.api';
-import { checkoutApi, type CheckoutSession } from '@/lib/api/checkout.api';
+import { checkoutApi } from '@/lib/api/checkout.api';
 import { userApi } from '@/lib/api/user.api';
+import { CheckoutShell, MoneySummary } from '@/components/checkout/checkout-shell';
+import type { Address } from '@/types/auth';
+
+type Cart = { id: string; currency: string; subtotal: number; estimatedTotal: number; items: Array<{ id: string; quantity: number; lineTotal: number; product: { name: string } }> };
 
 export default function CheckoutPage() {
-  const [cart, setCart] = useState<any>(null); const [addresses, setAddresses] = useState<any[]>([]); const [session, setSession] = useState<CheckoutSession | null>(null); const [error, setError] = useState(''); const [loading, setLoading] = useState(true);
-  useEffect(() => { Promise.all([cartApi.get(), userApi.addresses()]).then(([c, a]) => { setCart(c); setAddresses(a); }).catch((e) => setError(e.message)).finally(() => setLoading(false)); }, []);
-  async function start() { if (!cart?.id || !addresses[0]) return setError('Add a delivery address before checkout.'); try { setSession(await checkoutApi.create({ cartId: cart.id, shippingAddressId: addresses[0].id })); } catch (e) { setError((e as Error).message); } }
-  if (loading) return <main className="mx-auto max-w-3xl p-8"><p>Loading checkout…</p></main>;
-  return <main className="mx-auto max-w-3xl p-8"><div className="mb-8 flex justify-between"><h1 className="text-3xl font-bold">Checkout</h1><span className="text-sm text-muted-foreground">1 Cart · 2 Address · 3 Shipping · 4 Payment</span></div>{error && <p className="mb-4 rounded border border-red-400 p-3 text-red-500">{error}</p>}{!cart?.items?.length ? <p>Your cart is empty. <Link className="underline" href="/products">Browse products</Link></p> : session ? <div className="space-y-4 rounded-xl border p-6"><h2 className="text-xl font-semibold">Checkout session ready</h2><p>Status: {session.status}</p><p>Subtotal: {Number(session.subtotal).toFixed(2)} {session.currency}</p><p>Tax: {Number(session.taxTotal).toFixed(2)} {session.currency}</p><p className="font-bold">Total: {Number(session.grandTotal).toFixed(2)} {session.currency}</p><Link className="inline-block rounded bg-primary px-4 py-2 text-primary-foreground" href={`/checkout/shipping?session=${session.id}`}>Continue to shipping</Link></div> : <div className="space-y-4 rounded-xl border p-6"><h2 className="text-xl font-semibold">Review your cart</h2>{cart.items.map((item: any) => <div className="flex justify-between" key={item.id}><span>{item.product.name} × {item.quantity}</span><span>{Number(item.lineTotal).toFixed(2)} {cart.currency}</span></div>)}<p className="border-t pt-4 text-right font-bold">Subtotal: {Number(cart.subtotal).toFixed(2)} {cart.currency}</p><button onClick={start} className="w-full rounded bg-primary px-4 py-3 text-primary-foreground">Create checkout session</button></div>}</main>;
+  const [cart, setCart] = useState<Cart | null>(null);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selected, setSelected] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    Promise.all([cartApi.get() as Promise<Cart>, userApi.addresses()])
+      .then(([nextCart, nextAddresses]) => {
+        setCart(nextCart);
+        setAddresses(nextAddresses);
+        setSelected(nextAddresses.find((item) => item.isDefault)?.id ?? nextAddresses[0]?.id ?? '');
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : 'Checkout could not be loaded.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function continueCheckout() {
+    if (!cart?.id || !selected) return setError('Choose a delivery address before continuing.');
+    setSaving(true);
+    setError('');
+    try {
+      const session = await checkoutApi.create({ cartId: cart.id, shippingAddressId: selected });
+      window.location.assign(`/checkout/shipping?session=${session.id}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Checkout session could not be created.');
+      setSaving(false);
+    }
+  }
+
+  const summary = cart ? <MoneySummary subtotal={Number(cart.subtotal)} total={Number(cart.estimatedTotal)} currency={cart.currency} /> : null;
+  return <CheckoutShell step={1} title="Where should it arrive?" eyebrow="DELIVERY DETAILS" aside={summary}>
+    {loading ? <div className="checkout-loading"><span />Loading your saved details…</div> : null}
+    {error ? <div role="alert" className="checkout-error">{error}<button type="button" onClick={() => location.reload()}>Try again</button></div> : null}
+    {!loading && !cart?.items.length ? <div className="checkout-empty"><h2>Your bag is empty.</h2><p>Add a considered piece before starting checkout.</p><Link href="/products">Browse the edit <ArrowRight size={15} /></Link></div> : null}
+    {!loading && cart?.items.length ? <>
+      <div className="checkout-card-heading"><div><p>Step 1 of 4</p><h2>Choose an address</h2></div><MapPin size={22} /></div>
+      {addresses.length ? <div className="address-choice-grid">{addresses.map((address) => <label key={address.id} className={selected === address.id ? 'selected' : ''}><input type="radio" name="address" checked={selected === address.id} onChange={() => setSelected(address.id)} /><span><strong>{address.title || 'Delivery address'}</strong><small>{address.fullName}</small><small>{address.addressLine1}{address.addressLine2 ? `, ${address.addressLine2}` : ''}</small><small>{address.city}, {address.province} · {address.country}</small></span></label>)}</div> : <div className="checkout-empty compact"><h2>No delivery address yet.</h2><p>Add a complete address to your profile, then return here.</p><Link href="/profile/addresses">Add an address <ArrowRight size={15} /></Link></div>}
+      <button type="button" className="checkout-primary" disabled={!selected || saving} onClick={() => void continueCheckout()}>{saving ? 'Preparing checkout…' : <>Continue to shipping <ArrowRight size={16} /></>}</button>
+    </> : null}
+  </CheckoutShell>;
 }

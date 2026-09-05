@@ -1,12 +1,37 @@
 'use client';
+
 import Link from 'next/link';
+import { ArrowRight, Box, CircleDollarSign, PackageCheck, ShoppingBag, TrendingUp, UsersRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api/client';
 
 type Dashboard = { revenue: string | number; orders: number; averageOrderValue: string | number; customers: number; lowStockProducts: number; bestSellingProducts: Array<{ productId: string; _sum: { quantity: number | null; lineTotal: string | number | null } }>; recentActivities: Array<{ id: string; orderNumber: string; status: string; grandTotal: string | number; createdAt: string; user: { email: string } }> };
+
 export default function AdminDashboardPage() {
-  const [data, setData] = useState<Dashboard>(); const [error, setError] = useState('');
+  const [data, setData] = useState<Dashboard>();
+  const [error, setError] = useState('');
   useEffect(() => { api.get<Dashboard>('/admin/dashboard').then(setData).catch((e) => setError(e instanceof Error ? e.message : 'Unable to load dashboard.')); }, []);
-  const money = (value: string | number | undefined) => `${Number(value ?? 0).toFixed(2)} USD`;
-  return <main className="mx-auto max-w-7xl space-y-8 px-4 py-10"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium text-primary">Business overview</p><h1 className="text-3xl font-bold">Admin dashboard</h1><p className="mt-2 text-muted-foreground">Live performance across orders, customers, products, and inventory.</p></div><nav className="flex flex-wrap gap-3 text-sm"><Link className="text-primary underline" href="/admin/analytics">Analytics</Link><Link className="text-primary underline" href="/admin/reports">Reports</Link><Link className="text-primary underline" href="/admin/customers">Customers</Link></nav></div>{error && <p role="alert" className="rounded border border-red-300 p-3 text-red-600">{error}</p>}{!data ? <p className="text-muted-foreground" aria-live="polite">Loading dashboard…</p> : <><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{[['Revenue', money(data.revenue)], ['Orders', data.orders], ['Average order', money(data.averageOrderValue)], ['Customers', data.customers]].map(([label, value]) => <article className="rounded-2xl border bg-card p-5" key={label}><p className="text-sm text-muted-foreground">{label}</p><p className="mt-3 text-2xl font-bold">{value}</p></article>)}</div><div className="grid gap-6 lg:grid-cols-2"><section className="rounded-2xl border p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Recent activity</h2><Link href="/admin/orders" className="text-sm text-primary underline">View orders</Link></div><div className="mt-4 divide-y">{data.recentActivities.length ? data.recentActivities.map((item) => <div className="flex flex-wrap justify-between gap-3 py-3 text-sm" key={item.id}><div><p className="font-medium">{item.orderNumber}</p><p className="text-muted-foreground">{item.user.email} · {item.status}</p></div><span>{money(item.grandTotal)}</span></div>) : <p className="py-6 text-muted-foreground">No recent activity.</p>}</div></section><section className="rounded-2xl border p-5"><div className="flex items-center justify-between"><h2 className="font-semibold">Inventory alert</h2><Link href="/admin/analytics" className="text-sm text-primary underline">Inspect analytics</Link></div><p className="mt-4 text-3xl font-bold">{data.lowStockProducts}</p><p className="text-sm text-muted-foreground">variants at or below the reorder threshold</p></section></div></>}</main>;
+  const money = (value: string | number | undefined) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value ?? 0));
+
+  const metrics = data ? [
+    { label: 'Net revenue', value: money(data.revenue), note: 'Across confirmed sales', icon: CircleDollarSign, tone: 'lime' },
+    { label: 'Total orders', value: data.orders, note: 'All order statuses', icon: ShoppingBag, tone: 'neutral' },
+    { label: 'Average order', value: money(data.averageOrderValue), note: 'Per completed checkout', icon: TrendingUp, tone: 'neutral' },
+    { label: 'Customers', value: data.customers, note: 'Registered accounts', icon: UsersRound, tone: 'clay' },
+  ] : [];
+
+  return (
+    <main className="admin-dashboard-page">
+      <div className="admin-page-heading"><div><p>BUSINESS OVERVIEW</p><h1>Good evening.</h1><span>Here is what is happening across NOVA today.</span></div><Link href="/admin/reports" className="admin-primary-action">Create report <ArrowRight size={16} /></Link></div>
+      {error ? <div role="alert" className="admin-error">{error}<button type="button" onClick={() => location.reload()}>Retry</button></div> : null}
+      {!data ? <div className="admin-metric-grid" aria-label="Loading dashboard">{[1,2,3,4].map((item) => <div className="admin-metric-skeleton" key={item} />)}</div> : <>
+        <section className="admin-metric-grid" aria-label="Key business metrics">{metrics.map(({ label, value, note, icon: Icon, tone }) => <article className={`admin-metric admin-metric-${tone}`} key={label}><div><p>{label}</p><Icon size={19} /></div><strong>{value}</strong><span>{note}</span></article>)}</section>
+        <div className="admin-dashboard-grid">
+          <section className="admin-panel recent-panel"><div className="admin-panel-heading"><div><p>OPERATIONS</p><h2>Recent orders</h2></div><Link href="/admin/orders">View all <ArrowRight size={14} /></Link></div><div className="admin-order-list">{data.recentActivities.length ? data.recentActivities.slice(0, 5).map((item) => <Link href={`/admin/orders/${item.id}`} key={item.id}><span className="order-mark"><PackageCheck size={17} /></span><div><strong>{item.orderNumber}</strong><p>{item.user.email}</p></div><span className="order-status">{item.status.replaceAll('_', ' ')}</span><b>{money(item.grandTotal)}</b></Link>) : <div className="admin-empty"><PackageCheck size={25} /><p>No orders yet</p><span>New checkouts will appear here.</span></div>}</div></section>
+          <aside className="admin-panel inventory-panel"><div className="admin-panel-heading"><div><p>INVENTORY</p><h2>Stock attention</h2></div><Box size={20} /></div><div className="inventory-number"><strong>{data.lowStockProducts}</strong><span>variants need attention</span></div><div className="inventory-track"><span style={{ width: `${Math.min(100, data.lowStockProducts * 12)}%` }} /></div><p>{data.lowStockProducts ? 'Review low-stock products before the next campaign.' : 'Inventory levels look healthy across the catalog.'}</p><Link href="/admin/products">Review catalog <ArrowRight size={15} /></Link></aside>
+          <section className="admin-panel admin-quick-actions"><div className="admin-panel-heading"><div><p>SHORTCUTS</p><h2>Move quickly</h2></div></div><div><Link href="/admin/orders"><ShoppingBag size={18} /><span><strong>Manage orders</strong><small>Review fulfillment queue</small></span><ArrowRight size={15} /></Link><Link href="/admin/customers"><UsersRound size={18} /><span><strong>Customer directory</strong><small>Profiles and history</small></span><ArrowRight size={15} /></Link><Link href="/admin/analytics"><TrendingUp size={18} /><span><strong>Open analytics</strong><small>Trends and performance</small></span><ArrowRight size={15} /></Link></div></section>
+        </div>
+      </>}
+    </main>
+  );
 }

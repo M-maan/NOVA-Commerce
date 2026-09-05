@@ -1,4 +1,43 @@
 'use client';
-import Link from 'next/link'; import { Suspense, useEffect, useState } from 'react'; import { useSearchParams } from 'next/navigation'; import { checkoutApi, type CheckoutSession } from '@/lib/api/checkout.api';
-function ReviewContent() { const id = useSearchParams().get('session') ?? ''; const [s, setS] = useState<CheckoutSession | null>(null); const [code, setCode] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); useEffect(() => { checkoutApi.get(id).then(setS).catch(e => setError(e.message)); }, [id]); async function applyCoupon() { setSaving(true); setError(''); try { setS(await checkoutApi.coupon({ sessionId: id, code })); } catch (e) { setError((e as Error).message); } finally { setSaving(false); } } if (error && !s) return <main className="p-8 text-red-500">{error}</main>; if (!s) return <main className="p-8">Loading review…</main>; return <main className="mx-auto max-w-3xl p-8"><h1 className="text-3xl font-bold">Review checkout</h1>{error && <p className="my-3 text-red-500">{error}</p>}<div className="mt-8 space-y-2 rounded border p-6"><div className="flex gap-2"><input className="flex-1 rounded border px-3 py-2" placeholder="Coupon code" value={code} onChange={e => setCode(e.target.value)} /><button disabled={saving || !code} onClick={applyCoupon} className="rounded border px-4 py-2">{saving ? 'Applying…' : 'Apply coupon'}</button></div><p>Subtotal: {Number(s.subtotal).toFixed(2)} {s.currency}</p><p>Discount: {Number(s.discountTotal).toFixed(2)} {s.currency}</p><p>Shipping: {Number(s.shippingTotal).toFixed(2)} {s.currency}</p><p>Tax: {Number(s.taxTotal).toFixed(2)} {s.currency}</p><p className="border-t pt-3 text-xl font-bold">Total: {Number(s.grandTotal).toFixed(2)} {s.currency}</p><Link className="mt-4 inline-block rounded bg-primary px-4 py-2 text-primary-foreground" href={`/checkout/success?session=${s.id}`}>View result</Link></div></main>; }
-export default function ReviewPage() { return <Suspense fallback={<main className="p-8">Loading review…</main>}><ReviewContent /></Suspense>; }
+
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ArrowRight, BadgeCheck, Tag } from 'lucide-react';
+import { checkoutApi, type CheckoutSession } from '@/lib/api/checkout.api';
+import { CheckoutShell, MoneySummary } from '@/components/checkout/checkout-shell';
+
+function ReviewContent() {
+  const router = useRouter();
+  const sessionId = useSearchParams().get('session') ?? '';
+  const [session, setSession] = useState<CheckoutSession | null>(null);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    checkoutApi.get(sessionId).then(setSession).catch((cause) => setError(cause instanceof Error ? cause.message : 'Checkout could not be loaded.'));
+  }, [sessionId]);
+
+  async function applyCoupon() {
+    setSaving(true);
+    setError('');
+    try { setSession(await checkoutApi.coupon({ sessionId, code })); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Coupon could not be applied.'); }
+    finally { setSaving(false); }
+  }
+
+  const summary = session ? <MoneySummary subtotal={Number(session.subtotal)} discount={Number(session.discountTotal)} shipping={Number(session.shippingTotal)} tax={Number(session.taxTotal)} total={Number(session.grandTotal)} currency={session.currency} /> : null;
+  return <CheckoutShell step={3} title="One final look." eyebrow="ORDER REVIEW" aside={summary}>
+    {!session && !error ? <div className="checkout-loading"><span />Calculating final totals…</div> : null}
+    {!sessionId || error ? <div role="alert" className="checkout-error">{!sessionId ? 'Checkout session is missing.' : error}{error ? <button type="button" onClick={() => setError('')}>Dismiss</button> : null}</div> : null}
+    {session ? <><div className="checkout-card-heading"><div><p>Step 3 of 4</p><h2>Review and confirm</h2></div><BadgeCheck size={22} /></div>
+      <div className="review-delivery"><span>Delivering via</span><strong>{session.shippingMethod?.name ?? 'Selected delivery'}</strong><small>{session.shippingMethod?.estimatedDays ? `${session.shippingMethod.estimatedDays} business days` : 'Tracked service'}</small></div>
+      <div className="coupon-panel"><label htmlFor="coupon"><Tag size={16} /> Promotion code</label><div><input id="coupon" value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="Enter code" /><button type="button" disabled={!code.trim() || saving} onClick={() => void applyCoupon()}>{saving ? 'Applying…' : 'Apply'}</button></div></div>
+      <div className="payment-assurance"><span>✓ Final amount locked server-side</span><span>✓ Inventory reserved for 30 minutes</span><span>✓ Secure Stripe payment next</span></div>
+      <button type="button" className="checkout-primary" onClick={() => router.push(`/checkout/payment?session=${session.id}`)}>Continue to secure payment <ArrowRight size={16} /></button>
+    </> : null}
+  </CheckoutShell>;
+}
+
+export default function ReviewPage() { return <Suspense fallback={<main className="checkout-page"><div className="checkout-loading"><span />Loading review…</div></main>}><ReviewContent /></Suspense>; }

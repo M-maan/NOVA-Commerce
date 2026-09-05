@@ -12,6 +12,8 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   @Post('create-intent') intent(@CurrentUser() user: AuthUser, @Body() body: { checkoutSessionId: string }) { return this.service.createIntent(user.id, body.checkoutSessionId); }
   @UseGuards(JwtAuthGuard)
+  @Get('checkout/:sessionId/status') checkoutStatus(@CurrentUser() user: AuthUser, @Param('sessionId') sessionId: string) { return this.service.checkoutStatus(user.id, sessionId); }
+  @UseGuards(JwtAuthGuard)
   @Get(':id/status') status(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.status(user.id, id); }
   @UseGuards(JwtAuthGuard)
   @Post(':id/retry') retry(@CurrentUser() user: AuthUser, @Param('id') id: string) { return this.service.retry(user.id, id); }

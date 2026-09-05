@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CatalogStatus, Prisma, ProductType } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { RedisService } from '../../redis/redis.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
@@ -34,10 +35,28 @@ export class CatalogService {
   async uploadImage(productId: string, file: { buffer: Buffer; mimetype: string }, body: { altText?: string; sortOrder?: string; variantId?: string }) {
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
-    if (!cloudName || !uploadPreset) throw new InternalServerErrorException('Media upload is not configured. Set Cloudinary credentials.');
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    const canSignUpload = Boolean(apiKey && apiSecret);
+    if (!cloudName || (!uploadPreset && !canSignUpload)) {
+      throw new InternalServerErrorException('Media upload is not configured. Set a Cloudinary upload preset or API credentials.');
+    }
+
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), 'catalog-image');
-    form.append('upload_preset', uploadPreset);
+    if (canSignUpload) {
+      const folder = process.env.CLOUDINARY_FOLDER?.trim() || 'nova-commerce/products';
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      const signature = createHash('sha1')
+        .update(`folder=${folder}&timestamp=${timestamp}${apiSecret}`)
+        .digest('hex');
+      form.append('api_key', apiKey as string);
+      form.append('folder', folder);
+      form.append('timestamp', timestamp);
+      form.append('signature', signature);
+    } else {
+      form.append('upload_preset', uploadPreset as string);
+    }
     const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { method: 'POST', body: form });
     const payload = (await response.json()) as { secure_url?: string; public_id?: string; error?: { message?: string } };
     if (!response.ok || !payload.secure_url || !payload.public_id) throw new BadRequestException(payload.error?.message ?? 'Media upload failed');
@@ -458,7 +477,20 @@ export class CatalogService {
   }
 
   private validateImageUrl(url: string) {
-    if (!/\.(png|jpe?g|webp|gif|avif)(\?.*)?$/i.test(url)) throw new BadRequestException('Invalid image format');
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new BadRequestException('Image URL must be a valid HTTPS URL');
+    }
+    if (parsed.protocol !== 'https:') throw new BadRequestException('Image URL must use HTTPS');
+    if (!/\.(png|jpe?g|webp|gif|avif)(\?.*)?$/i.test(parsed.pathname + parsed.search)) throw new BadRequestException('Invalid image format');
+
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+    if (process.env.NODE_ENV === 'production' && cloudName) {
+      const isManagedCloudinaryAsset = parsed.hostname === 'res.cloudinary.com' && parsed.pathname.startsWith(`/${cloudName}/`);
+      if (!isManagedCloudinaryAsset) throw new BadRequestException('Production product media must be hosted in the configured Cloudinary account');
+    }
   }
 
   private async assertUniqueCategorySlug(slug: string, currentId?: string) {

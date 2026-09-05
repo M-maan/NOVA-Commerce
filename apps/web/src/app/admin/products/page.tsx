@@ -28,6 +28,8 @@ export default function AdminProductsPage() {
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [mediaMessage, setMediaMessage] = useState('');
 
   const params = useMemo(() => {
     const next = new URLSearchParams({ limit: '50' });
@@ -76,6 +78,25 @@ export default function AdminProductsPage() {
     }
   }
 
+  async function uploadMedia(product: Product, file?: File) {
+    if (!file) return;
+    setUploading(product.id);
+    setError('');
+    setMediaMessage('');
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('altText', product.name);
+      await api.upload(`/admin/products/${product.id}/images/upload`, form);
+      setMediaMessage(`${product.name} media uploaded to Cloudinary.`);
+      await load(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Media upload failed.');
+    } finally {
+      setUploading(null);
+    }
+  }
+
   function exportCsv() {
     const rows = products.map((product) => [
       product.name,
@@ -120,6 +141,7 @@ export default function AdminProductsPage() {
       </section>
 
       {error && <p role="alert" className="rounded-md border border-red-300 p-3 text-red-600">{error}</p>}
+      {mediaMessage && <p role="status" className="rounded-md border border-green-300 bg-green-50 p-3 text-green-800">{mediaMessage}</p>}
       {loading ? <p className="rounded-md border p-6 text-muted-foreground">Loading products...</p> : null}
 
       {!loading && (
@@ -155,7 +177,13 @@ export default function AdminProductsPage() {
                     <p className="text-muted-foreground">{product.categories?.map((item) => item.category.name).join(', ') || 'No category'}</p>
                   </td>
                   <td className="p-3">
-                    <Link href={`/products/${product.slug}`} className="text-primary underline">Preview</Link>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Link href={`/products/${product.slug}`} className="text-primary underline">Preview</Link>
+                      <label className="cursor-pointer rounded-md border px-3 py-2 text-xs font-medium hover:bg-muted">
+                        {uploading === product.id ? 'Uploading…' : 'Upload media'}
+                        <input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={uploading === product.id} onChange={(event) => { const file = event.currentTarget.files?.[0]; void uploadMedia(product, file); event.currentTarget.value = ''; }} />
+                      </label>
+                    </div>
                   </td>
                 </tr>
               ))}

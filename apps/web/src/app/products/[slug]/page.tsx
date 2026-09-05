@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { ArrowLeft, PackageCheck, ShieldCheck, Truck } from 'lucide-react';
 import { productsApi } from '@/lib/api/products.api';
 import { ProductImageGallery } from '@/components/catalog/product-image-gallery';
 import { ProductVariantSelector } from '@/components/catalog/product-variant-selector';
@@ -24,27 +25,30 @@ export default async function ProductDetailPage({ params }: PageProps) {
   const product = await productsApi.bySlug(slug);
   const related = await productsApi.related(product.id);
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10">
-      <div className="mb-6 text-sm text-muted-foreground"><Link href="/products" className="hover:text-primary">Products</Link> / {product.name}</div>
-      <div className="grid gap-10 lg:grid-cols-2">
+    <main className="product-detail-page">
+      <div className="product-breadcrumb"><Link href="/products"><ArrowLeft aria-hidden="true" size={14} /> Back to the edit</Link><span>{product.categories[0]?.category.name ?? 'NOVA collection'} / {product.name}</span></div>
+      <div className="product-detail-layout">
         <ProductImageGallery product={product} />
-        <section className="space-y-6">
-          <div>
-            {product.brand ? <Link href={`/brands/${product.brand.slug}`} className="text-sm font-medium text-primary">{product.brand.name}</Link> : null}
-            <h1 className="mt-2 text-3xl font-bold">{product.name}</h1>
-            {product.shortDescription ? <p className="mt-3 text-muted-foreground">{product.shortDescription}</p> : null}
+        <section className="product-detail-copy">
+          <div className="product-title-block">
+            <p className="overline"><span />{product.brand ? <Link href={`/brands/${product.brand.slug}`}>{product.brand.name}</Link> : 'NOVA EDIT'}</p>
+            <h1>{product.name}</h1>
+            {product.shortDescription ? <p>{product.shortDescription}</p> : null}
           </div>
           {product.variants.length || product.options.length ? <ProductVariantSelector product={product} /> : <><ProductPrice product={product} /><ProductActions product={product} /></>}
-          <div className="flex flex-wrap gap-2">
-            {product.categories.map(({ category }) => <Link key={category.id} href={`/categories/${category.slug}`} className="rounded-full border px-3 py-1 text-sm">{category.name}</Link>)}
+          <div className="product-assurance-grid">
+            <p><Truck aria-hidden="true" size={18} /><span><strong>Complimentary delivery</strong>Over $120</span></p>
+            <p><PackageCheck aria-hidden="true" size={18} /><span><strong>30-day returns</strong>Simple and considered</span></p>
+            <p><ShieldCheck aria-hidden="true" size={18} /><span><strong>Secure checkout</strong>Protected end to end</span></p>
           </div>
-          <section className="prose prose-sm max-w-none dark:prose-invert">
-            <h2 className="text-xl font-semibold">Description</h2>
-            <p className="whitespace-pre-line text-muted-foreground">{product.description ?? 'No detailed description available.'}</p>
+          <section className="product-description">
+            <div><p className="overline">DETAILS / CARE</p><h2>Made to earn<br />its place.</h2></div>
+            <p>{product.description ?? 'A considered piece selected for everyday function and a longer life.'}</p>
+            <div className="product-category-links">{product.categories.map(({ category }) => <Link key={category.id} href={`/categories/${category.slug}`}>{category.name}</Link>)}</div>
           </section>
         </section>
       </div>
-      {related.length ? <section className="mt-12"><h2 className="mb-5 text-2xl font-semibold">Related products</h2><ProductGrid products={related} /></section> : null}
+      {related.length ? <section className="product-related"><div><p className="overline"><span />KEEP EXPLORING</p><h2>More considered pieces.</h2></div><ProductGrid products={related} /></section> : null}
       <RecentlyViewed product={product} />
       <ReviewSection productId={product.id} />
     </main>

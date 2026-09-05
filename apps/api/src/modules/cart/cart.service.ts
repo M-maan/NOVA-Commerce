@@ -6,8 +6,8 @@ type CartWithRelations = Prisma.CartGetPayload<{
   include: {
     items: {
       include: {
-        product: true;
-        variant: true;
+        product: { include: { images: true } };
+        variant: { include: { images: true } };
       };
     };
     coupon: {
@@ -33,8 +33,8 @@ export class CartService {
   private cartInclude = {
     items: {
       include: {
-        product: true,
-        variant: true,
+        product: { include: { images: { orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }] } } },
+        variant: { include: { images: { orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }] } } },
       },
     },
     coupon: {
@@ -49,23 +49,42 @@ export class CartService {
       throw new BadRequestException('Guest session is required');
     }
 
-    const where = userId
-      ? { userId, status: 'ACTIVE' as const }
-      : { guestSessionId, status: 'ACTIVE' as const };
+    // Header, cart page, and product actions can request the cart at the same
+    // time. Prisma may emulate an upsert when relations are included, so a
+    // concurrent first request can still lose the insert race. The loser
+    // recovers the cart created by the winner instead of surfacing a 500.
+    if (userId) {
+      const where = { userId_status: { userId, status: 'ACTIVE' as const } };
+      try {
+        return await this.prisma.cart.upsert({
+          where,
+          update: {},
+          create: { userId, currency: 'USD' },
+          include: this.cartInclude,
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+        return this.prisma.cart.findUniqueOrThrow({ where, include: this.cartInclude });
+      }
+    }
 
-    const existing = await this.prisma.cart.findFirst({
-      where,
-      include: this.cartInclude,
-    });
-
-    if (existing) return existing;
-
-    return this.prisma.cart.create({
-      data: userId
-        ? { userId, currency: 'USD' }
-        : { guestSessionId, currency: 'USD' },
-      include: this.cartInclude,
-    });
+    const where = {
+      guestSessionId_status: {
+        guestSessionId: guestSessionId as string,
+        status: 'ACTIVE' as const,
+      },
+    };
+    try {
+      return await this.prisma.cart.upsert({
+        where,
+        update: {},
+        create: { guestSessionId, currency: 'USD' },
+        include: this.cartInclude,
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      return this.prisma.cart.findUniqueOrThrow({ where, include: this.cartInclude });
+    }
   }
 
   private itemPrice(item: CartItemWithRelations) {

@@ -10,4 +10,9 @@ export const configValidationSchema = Joi.object({
   JWT_ACCESS_TTL: Joi.string().default('15m'),
   JWT_REFRESH_TTL: Joi.string().default('7d'),
   WEB_ORIGIN: Joi.string().optional(),
+  CLOUDINARY_CLOUD_NAME: Joi.string().allow('').optional(),
+  CLOUDINARY_UPLOAD_PRESET: Joi.string().allow('').optional(),
+  CLOUDINARY_API_KEY: Joi.string().allow('').optional(),
+  CLOUDINARY_API_SECRET: Joi.string().allow('').optional(),
+  CLOUDINARY_FOLDER: Joi.string().allow('').optional(),
 });

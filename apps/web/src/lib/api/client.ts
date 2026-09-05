@@ -64,6 +64,10 @@ export class ApiClient {
     return this.request<T>(path, { ...init, method: 'POST', body: JSON.stringify(body ?? {}) });
   }
 
+  upload<T>(path: string, form: FormData): Promise<T> {
+    return this.request<T>(path, { method: 'POST', body: form });
+  }
+
   patch<T>(path: string, body?: unknown, init?: RequestInit): Promise<T> {
     return this.request<T>(path, { ...init, method: 'PATCH', body: JSON.stringify(body ?? {}) });
   }

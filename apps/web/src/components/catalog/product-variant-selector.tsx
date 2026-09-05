@@ -16,18 +16,18 @@ export function ProductVariantSelector({ product }: { product: Product }) {
   }, [product.id, resetSelection, selectedVariant, setSelectedVariant]);
 
   return (
-    <div className="space-y-4 rounded-xl border p-4">
+    <div className="product-purchase-panel">
       <ProductPrice product={product} variant={selectedVariant} />
       {product.options.map((option) => (
-        <div key={option.id} className="space-y-2">
-          <p className="text-sm font-medium">{option.name}</p>
-          <div className="flex flex-wrap gap-2">
+        <div key={option.id} className="product-option-group">
+          <p>{option.name}</p>
+          <div>
             {option.values.map((value) => (
               <button
                 type="button"
                 key={value.id}
                 onClick={() => setSelectedOption(option.id, value.id)}
-                className={`rounded-md border px-3 py-2 text-sm ${selectedOptions[option.id] === value.id ? 'border-primary bg-primary text-primary-foreground' : 'bg-background'}`}
+                className={selectedOptions[option.id] === value.id ? 'selected' : ''}
               >
                 {value.value}
               </button>
@@ -36,14 +36,14 @@ export function ProductVariantSelector({ product }: { product: Product }) {
         </div>
       ))}
       {product.variants.length ? (
-        <label className="block text-sm font-medium">
-          Variant
-          <select value={selectedVariant?.id ?? ''} onChange={(event) => setSelectedVariant(event.target.value)} className="mt-1 w-full rounded-md border bg-background px-3 py-2">
+        <label className="product-variant-select">
+          <span>Choose variant</span>
+          <select value={selectedVariant?.id ?? ''} onChange={(event) => setSelectedVariant(event.target.value)}>
             {product.variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name}{variant.sku ? ` · ${variant.sku}` : ''}</option>)}
           </select>
         </label>
       ) : null}
-      {selectedVariant?.sku ? <p className="text-sm text-muted-foreground">SKU: {selectedVariant.sku}</p> : null}
+      {selectedVariant?.sku ? <p className="product-sku">SKU / {selectedVariant.sku}</p> : null}
       <ProductActions product={product} variantId={selectedVariant?.id} />
     </div>
   );
