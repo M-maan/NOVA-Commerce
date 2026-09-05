@@ -1,30 +1,50 @@
-import { OnModuleInit } from '@nestjs/common';
-import { InjectQueue, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job, Queue } from 'bullmq';
-import { QUEUES } from '../../queue/queue.constants';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 
 /**
  * Order lifecycle jobs are deliberately provider-agnostic. They keep return
  * windows and Stripe refund state consistent even when no admin is online.
  */
-@Processor(QUEUES.ORDERS)
-export class OrdersProcessor extends WorkerHost implements OnModuleInit {
-  constructor(
-    private readonly orders: OrdersService,
-    @InjectQueue(QUEUES.ORDERS) private readonly queue: Queue,
-  ) {
-    super();
+@Injectable()
+export class OrdersProcessor implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(OrdersProcessor.name);
+  private readonly timers: NodeJS.Timeout[] = [];
+  private syncingRefunds = false;
+  private expiringReturns = false;
+
+  constructor(private readonly orders: OrdersService) {}
+
+  onModuleInit() {
+    this.timers.push(setInterval(() => void this.syncRefunds(), 5 * 60_000));
+    this.timers.push(setInterval(() => void this.expireReturns(), 60 * 60_000));
+    this.timers.forEach((timer) => timer.unref());
   }
 
-  async onModuleInit() {
-    await this.queue.add('expire-returns', {}, { repeat: { every: 60 * 60 * 1000 }, removeOnComplete: 100, removeOnFail: 100 });
-    await this.queue.add('sync-refunds', {}, { repeat: { every: 5 * 60 * 1000 }, removeOnComplete: 100, removeOnFail: 100 });
+  onModuleDestroy() {
+    this.timers.forEach((timer) => clearInterval(timer));
   }
 
-  async process(job: Job) {
-    if (job.name === 'expire-returns') return this.orders.expireReturns();
-    if (job.name === 'sync-refunds') return this.orders.syncRefunds();
-    return { ignored: true, job: job.name };
+  private async syncRefunds() {
+    if (this.syncingRefunds) return;
+    this.syncingRefunds = true;
+    try {
+      await this.orders.syncRefunds();
+    } catch (error) {
+      this.logger.error('Failed to sync Stripe refunds', error instanceof Error ? error.stack : undefined);
+    } finally {
+      this.syncingRefunds = false;
+    }
+  }
+
+  private async expireReturns() {
+    if (this.expiringReturns) return;
+    this.expiringReturns = true;
+    try {
+      await this.orders.expireReturns();
+    } catch (error) {
+      this.logger.error('Failed to expire return requests', error instanceof Error ? error.stack : undefined);
+    } finally {
+      this.expiringReturns = false;
+    }
   }
 }

@@ -1,14 +1,32 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
-import { QUEUES } from '../../queue/queue.constants';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 
-@Processor(QUEUES.INVENTORY)
-export class InventoryExpiryProcessor extends WorkerHost {
-  constructor(private readonly inventory: InventoryService) { super(); }
-  async process(job: Job<{ reservationId?: string }>) {
-    if (job.name === 'release-reservation' && job.data.reservationId) return this.inventory.release(job.data.reservationId);
-    if (job.name === 'expire-reservations') return this.inventory.expire();
-    return { ignored: true };
+@Injectable()
+export class InventoryExpiryProcessor implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(InventoryExpiryProcessor.name);
+  private timer?: NodeJS.Timeout;
+  private running = false;
+
+  constructor(private readonly inventory: InventoryService) {}
+
+  onModuleInit() {
+    this.timer = setInterval(() => void this.expireReservations(), 60_000);
+    this.timer.unref();
+  }
+
+  onModuleDestroy() {
+    if (this.timer) clearInterval(this.timer);
+  }
+
+  private async expireReservations() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      await this.inventory.expire();
+    } catch (error) {
+      this.logger.error('Failed to expire inventory reservations', error instanceof Error ? error.stack : undefined);
+    } finally {
+      this.running = false;
+    }
   }
 }

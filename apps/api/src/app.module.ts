@@ -1,13 +1,11 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
+import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import * as Joi from 'joi';
 import { HealthModule } from './modules/health/health.module';
 import { DatabaseModule } from './database/database.module';
-import { QueueModule } from './queue/queue.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -76,19 +74,7 @@ import { RequestContextMiddleware } from './common/middleware/request-context.mi
     // rate-limiting normal navigation; auth endpoints retain their stricter
     // per-route five-attempt policy.
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
-    BullModule.forRootAsync({
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          url: config.getOrThrow<string>('REDIS_URL'),
-          enableReadyCheck: false,
-          maxRetriesPerRequest: null,
-        },
-        skipVersionCheck: true,
-      }),
-      inject: [ConfigService],
-    }),
     DatabaseModule,
-    QueueModule,
     AuthModule,
     UsersModule,
     CatalogModule,

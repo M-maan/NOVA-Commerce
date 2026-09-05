@@ -17,9 +17,6 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { InventoryService } from '../inventory/inventory.service';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { QUEUES } from '../../queue/queue.constants';
 import { NotificationsService } from '../notifications/notifications.service';
 
 const transitions: Record<OrderStatus, OrderStatus[]> = {
@@ -42,7 +39,6 @@ export class OrdersService {
     private readonly inventory: InventoryService,
     private readonly config: ConfigService,
     private readonly inAppNotifications: NotificationsService,
-    @InjectQueue(QUEUES.NOTIFICATIONS) private readonly notifications: Queue,
   ) {}
 
   async createFromPayment(paymentId: string) {
@@ -115,7 +111,6 @@ export class OrdersService {
       await tx.cart.update({ where: { id: checkout.cartId }, data: { status: 'CONVERTED' } });
       return created;
     });
-    await this.notifications.add('order-confirmed', { recipient: order.email, template: 'order-confirmed', orderId: order.id }, { removeOnComplete: true });
     await this.inAppNotifications.create(order.userId, NotificationType.ORDER_CONFIRMED, 'Order confirmed', `Your order ${order.orderNumber} has been confirmed.`);
     return order;
   }
@@ -156,7 +151,6 @@ export class OrdersService {
       await tx.orderStatusHistory.create({ data: { orderId: id, previousStatus: current.status, newStatus: status, changedBy, reason } });
       return order;
     });
-    await this.notifications.add(`order-${status.toLowerCase()}`, { template: `order-${status.toLowerCase()}`, orderId: id }, { removeOnComplete: true });
     const notificationType = this.notificationTypeFor(status);
     if (notificationType) await this.inAppNotifications.create(updated.userId, notificationType, `Order ${status.toLowerCase()}`, `Your order status changed to ${status.toLowerCase().replace('_', ' ')}.`);
     return updated;
