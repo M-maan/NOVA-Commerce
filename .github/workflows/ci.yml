@@ -17,6 +17,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @nova/api prisma:generate
       - run: pnpm audit --prod
       - run: pnpm lint
       - run: pnpm typecheck
